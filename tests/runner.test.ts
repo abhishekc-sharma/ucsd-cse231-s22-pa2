@@ -1,4 +1,4 @@
-import { compile, run } from '../compiler';
+import { compile, run } from '../core/compiler';
 import { expect } from 'chai';
 import 'mocha';
 

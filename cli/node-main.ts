@@ -1,4 +1,4 @@
-import {compile, run} from './compiler';
+import {compile, run} from '../core/compiler';
 
 // command to run:
 // node node-main.js 987
