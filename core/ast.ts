@@ -7,12 +7,14 @@ export type Parameter =
   | { name: string, typ: Type }
 
 export type Stmt<A> =
+  | { a?: A, tag: "vardef", name: string, type: Type, value: Expr<A> }
   | { a?: A, tag: "assign", name: string, value: Expr<A> }
   | { a?: A, tag: "expr", expr: Expr<A> }
   | { a?: A, tag: "define", name: string, params: Parameter[], ret: Type, body: Stmt<A>[] }
   | { a?: A, tag: "return", value: Expr<A> }
 
 export type Expr<A> = 
+  | { a?: A, tag: "none" }
   | { a?: A, tag: "number", value: number }
   | { a?: A, tag: "true" }
   | { a?: A, tag: "false" }

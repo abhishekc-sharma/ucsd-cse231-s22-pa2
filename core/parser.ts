@@ -4,82 +4,157 @@ import {Parameter, Stmt, Expr, Type, isOp} from './ast';
 
 export function parseProgram(source : string) : Array<Stmt<any>> {
   const t = parser.parse(source).cursor();
-  return traverseStmts(source, t);
-}
 
-export function traverseStmts(s : string, t : TreeCursor) {
   // The top node in the program is a Script node with a list of children
   // that are various statements
   t.firstChild();
+
+  let defMode = true;
   const stmts = [];
   do {
-    stmts.push(traverseStmt(s, t));
-  } while(t.nextSibling()); // t.nextSibling() returns false when it reaches
-                            //  the end of the list of children
+    if(!isDef(t)) {
+      defMode = false;
+      break;
+    }
+    stmts.push(parseDef(source, t));
+  } while(t.nextSibling());
+
+  if(defMode) {
+    return stmts;
+  }
+
+  do {
+    stmts.push(parseStmt(source, t));
+  } while(t.nextSibling());
+
   return stmts;
+}
+
+function isDef(t : TreeCursor) : boolean {
+  switch(t.type.name) {
+    case "FunctionDefinition":
+      return true;
+    case "AssignStatement":
+      t.firstChild();
+      t.nextSibling();
+
+      // @ts-ignore
+      let ret = t.type.name === "TypeDef";
+      t.parent();
+      return ret;
+    default:
+      return false;
+  }
 }
 
 /*
   Invariant – t must focus on the same node at the end of the traversal
 */
-export function traverseStmt(s : string, t : TreeCursor) : Stmt<any> {
+export function parseDef(s : string, t : TreeCursor) : Stmt<any> {
   switch(t.type.name) {
-    case "ReturnStatement":
-      t.firstChild();  // Focus return keyword
-      t.nextSibling(); // Focus expression
-      var value = traverseExpr(s, t);
-      t.parent();
-      return { tag: "return", value };
     case "AssignStatement":
-      t.firstChild(); // focused on name (the first child)
-      var name = s.substring(t.from, t.to);
-      t.nextSibling(); // focused on = sign. May need this for complex tasks, like +=!
-      t.nextSibling(); // focused on the value expression
+      t.firstChild(); // focus on variable name
+      const vname = s.substring(t.from, t.to);
 
-      var value = traverseExpr(s, t);
-      t.parent();
-      return { tag: "assign", name, value };
-    case "ExpressionStatement":
-      t.firstChild(); // The child is some kind of expression, the
-                      // ExpressionStatement is just a wrapper with no information
-      var expr = traverseExpr(s, t);
-      t.parent();
-      return { tag: "expr", expr: expr };
+      t.nextSibling(); // focus on type definition
+
+      // Not sure if there is a better way to deal with this. TypeScript is not able to
+      // figure out that t.nextSibling mutates t and changes t.type.name.
+      // So explicitly ignoring the TypeScript error for now.
+      // @ts-ignore
+      if(t.type.name !== "TypeDef") {
+        t.parent();
+        throw new Error("Missing type annotation in variable definition: " + s.substring(t.from, t.to));
+      }
+
+      t.firstChild(); // focus on :
+      t.nextSibling(); // focus on VariableName
+      const type = parseType(s, t);
+
+      t.parent(); // focus back on type definition
+      t.nextSibling(); // focus on =
+      t.nextSibling(); // focus on expression being assigned
+
+      const value = parseExpr(s, t);
+      if(value.tag !== "number" && value.tag !== "true" && value.tag !== "false" && value.tag !== "none") {
+        t.parent();
+        throw new Error("Variable definitions can only have literals on the right hand side: " + s.substring(t.from, t.to));
+      }
+
+      t.parent(); // focus back on AssignStatement
+
+      return { tag: "vardef", name: vname, type, value }
+
     case "FunctionDefinition":
       t.firstChild();  // Focus on def
       t.nextSibling(); // Focus on name of function
-      var name = s.substring(t.from, t.to);
+      let fname = s.substring(t.from, t.to);
       t.nextSibling(); // Focus on ParamList
-      var params = traverseParameters(s, t)
+      var params = parseParameters(s, t)
       t.nextSibling(); // Focus on Body or TypeDef
       let ret : Type = "none";
       let maybeTD = t;
       if(maybeTD.type.name === "TypeDef") {
         t.firstChild();
-        ret = traverseType(s, t);
+        ret = parseType(s, t);
         t.parent();
       }
       t.nextSibling(); // Focus on single statement (for now)
       t.firstChild();  // Focus on :
       const body = [];
       while(t.nextSibling()) {
-        body.push(traverseStmt(s, t));
+        body.push(parseStmt(s, t));
       }
       t.parent();      // Pop to Body
       t.parent();      // Pop to FunctionDefinition
       return {
         tag: "define",
-        name, params, body, ret
+        name: fname, params, body, ret
       }
-      
   }
 }
 
-export function traverseType(s : string, t : TreeCursor) : Type {
+/*
+  Invariant – t must focus on the same node at the end of the traversal
+*/
+export function parseStmt(s : string, t : TreeCursor) : Stmt<any> {
+  switch(t.type.name) {
+    case "ReturnStatement":
+      t.firstChild();  // Focus return keyword
+      t.nextSibling(); // Focus expression
+      var value = parseExpr(s, t);
+      t.parent();
+      return { tag: "return", value };
+    case "AssignStatement":
+      t.firstChild(); // focused on name (the first child)
+      var name = s.substring(t.from, t.to);
+      t.nextSibling(); // focused on = sign. May need this for complex tasks, like +=!
+      // @ts-ignore
+      if(t.type.name == "TypeDef") {
+        t.parent();
+        throw new Error("Unexpected type annotation in variable assignment: " + s.substring(t.from, t.to));
+      }
+      t.nextSibling(); // focused on the value expression
+
+      var value = parseExpr(s, t);
+      t.parent();
+      return { tag: "assign", name, value };
+    case "ExpressionStatement":
+      t.firstChild(); // The child is some kind of expression, the
+                      // ExpressionStatement is just a wrapper with no information
+      var expr = parseExpr(s, t);
+      t.parent();
+      return { tag: "expr", expr: expr };
+    default:
+      throw new Error(`Unexpected statement: ` + s.substring(t.from, t.to));
+  }
+}
+
+export function parseType(s : string, t : TreeCursor) : Type {
   switch(t.type.name) {
     case "VariableName":
       const name = s.substring(t.from, t.to);
-      if(name !== "int") {
+      if(name !== "int" && name !== "bool") {
         throw new Error("Unknown type: " + name)
       }
       return name;
@@ -89,7 +164,7 @@ export function traverseType(s : string, t : TreeCursor) : Type {
   }
 }
 
-export function traverseParameters(s : string, t : TreeCursor) : Parameter[] {
+export function parseParameters(s : string, t : TreeCursor) : Parameter[] {
   t.firstChild();  // Focuses on open paren
   const parameters = []
   t.nextSibling(); // Focuses on a VariableName
@@ -100,7 +175,7 @@ export function traverseParameters(s : string, t : TreeCursor) : Parameter[] {
     if(nextTagName !== "TypeDef") { throw new Error("Missed type annotation for parameter " + name)};
     t.firstChild();  // Enter TypeDef
     t.nextSibling(); // Focuses on type itself
-    let typ = traverseType(s, t);
+    let typ = parseType(s, t);
     t.parent();
     t.nextSibling(); // Move on to comma or ")"
     parameters.push({name, typ});
@@ -110,7 +185,7 @@ export function traverseParameters(s : string, t : TreeCursor) : Parameter[] {
   return parameters;
 }
 
-export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
+export function parseExpr(s : string, t : TreeCursor) : Expr<any> {
   switch(t.type.name) {
     case "Boolean":
       if(s.substring(t.from, t.to) === "True") { return { tag: "true" }; }
@@ -124,20 +199,20 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
       var name = s.substring(t.from, t.to);
       t.nextSibling(); // Focus ArgList
       t.firstChild(); // Focus open paren
-      var args = traverseArguments(t, s);
+      var args = parseArguments(s, t);
       var result : Expr<any> = { tag: "call", name, args: args};
       t.parent();
       return result;
     case "BinaryExpression":
       t.firstChild(); // go to lhs
-      const lhsExpr = traverseExpr(s, t);
+      const lhsExpr = parseExpr(s, t);
       t.nextSibling(); // go to op
       var opStr = s.substring(t.from, t.to);
       if(!isOp(opStr)) {
         throw new Error(`Unknown or unhandled op: ${opStr}`);
       }
       t.nextSibling(); // go to rhs
-      const rhsExpr = traverseExpr(s, t);
+      const rhsExpr = parseExpr(s, t);
       t.parent();
       return {
         tag: "binop",
@@ -145,16 +220,17 @@ export function traverseExpr(s : string, t : TreeCursor) : Expr<any> {
         lhs: lhsExpr,
         rhs: rhsExpr
       };
-  
+    //default:
+    //  throw new Error(`Unexpected expression: ` + s.substring(t.from, t.to));
   }
 }
 
-export function traverseArguments(c : TreeCursor, s : string) : Expr<any>[] {
+export function parseArguments(s : string, c : TreeCursor) : Expr<any>[] {
   c.firstChild();  // Focuses on open paren
   const args = [];
   c.nextSibling();
   while(c.type.name !== ")") {
-    let expr = traverseExpr(s, c);
+    let expr = parseExpr(s, c);
     args.push(expr);
     c.nextSibling(); // Focuses on either "," or ")"
     c.nextSibling(); // Focuses on a VariableName
