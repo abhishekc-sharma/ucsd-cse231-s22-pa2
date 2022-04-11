@@ -1,5 +1,5 @@
 import wabt from 'wabt';
-import {Stmt, Expr, Type, Op} from './ast';
+import {Stmt, Expr, Type, BinOp} from './ast';
 import {parseProgram} from './parser';
 import { tcProgram } from './tc';
 
@@ -31,7 +31,7 @@ export async function run(watSource : string, config: any) : Promise<number> {
   return (wasmModule.instance.exports as any)._start();
 }
 
-export function opStmts(op : Op) {
+export function opStmts(op : BinOp) {
   switch(op) {
     case "+": return [`i32.add`];
     case "-": return [`i32.sub`];

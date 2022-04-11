@@ -7,7 +7,7 @@ export type Parameter =
   | { name: string, typ: Type }
 
 export type Stmt<A> =
-  | { a?: A, tag: "vardef", name: string, type: Type, value: Expr<A> }
+  | { a?: A, tag: "vardef", name: string, type: Type, value: Expr<A>, global: boolean }
   | { a?: A, tag: "assign", name: string, value: Expr<A> }
   | { a?: A, tag: "expr", expr: Expr<A> }
   | { a?: A, tag: "define", name: string, params: Parameter[], ret: Type, body: Stmt<A>[] }
@@ -18,12 +18,12 @@ export type Expr<A> =
   | { a?: A, tag: "number", value: number }
   | { a?: A, tag: "true" }
   | { a?: A, tag: "false" }
-  | { a?: A, tag: "binop", op: Op, lhs: Expr<A>, rhs: Expr<A> }
-  | { a?: A, tag: "id", name: string, global?: boolean }
+  | { a?: A, tag: "binop", op: BinOp, lhs: Expr<A>, rhs: Expr<A> }
+  | { a?: A, tag: "id", name: string }
   | { a?: A, tag: "call", name: string, args: Expr<A>[] }
 
-const ops = {"+": true, "-": true, ">": true, "and": true, "or": true};
-export type Op = keyof (typeof ops);
-export function isOp(maybeOp : string) : maybeOp is Op {
-  return maybeOp in ops;
+const binOps = {"+": true, "-": true, ">": true, "and": true, "or": true};
+export type BinOp = keyof (typeof binOps);
+export function isBinOp(maybeBinOp : string) : maybeBinOp is BinOp {
+  return maybeBinOp in binOps;
 }

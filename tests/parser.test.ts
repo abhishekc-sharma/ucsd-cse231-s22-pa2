@@ -1,4 +1,3 @@
-import * as mocha from 'mocha'
 import {expect} from 'chai'
 import { parser } from 'lezer-python'
 import { parseProgram, parseStmt, parseDef, parseExpr, parseType, parseParameters, parseArguments } from '../core/parser'
@@ -240,8 +239,17 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor);
+    const stmt = parseStmt(source, cursor, true);
     expect(stmt).to.deep.equal({tag: "return", value: {tag: "id", name: "x"}});
+  });
+
+  it('throws an error on return statement outside a function', () => {
+    const source = "return x"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    expect(() => parseStmt(source, cursor, false)).to.throw();
   });
 
   it('parses an assignment statement', () => {
@@ -250,7 +258,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor);
+    const stmt = parseStmt(source, cursor, false);
     expect(stmt).to.deep.equal({tag: "assign", name: "x", value: {tag: "number", value: 10}});
   });
 
@@ -260,7 +268,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    expect(() => parseStmt(source, cursor)).to.throw();
+    expect(() => parseStmt(source, cursor, false)).to.throw();
   });
 
   it('parses an expression statement', () => {
@@ -269,7 +277,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor);
+    const stmt = parseStmt(source, cursor, false);
     expect(stmt).to.deep.equal({tag: "expr", expr: {tag: "id", name: "x"}});
   });
 });
@@ -281,8 +289,8 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    const stmt = parseDef(source, cursor);
-    expect(stmt).to.deep.equal({tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 10}});
+    const stmt = parseDef(source, cursor, true);
+    expect(stmt).to.deep.equal({tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 10}, global: false});
   });
 
   it('parses a boolean variable definition', () => {
@@ -291,8 +299,8 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    const stmt = parseDef(source, cursor);
-    expect(stmt).to.deep.equal({tag: "vardef", name: "x", type: "bool", value: {tag: "true"}});
+    const stmt = parseDef(source, cursor, false);
+    expect(stmt).to.deep.equal({tag: "vardef", name: "x", type: "bool", value: {tag: "true"}, global: true});
   });
 
   it('throws error on variable definition with missing type annotation', () => {
@@ -301,7 +309,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    expect(() => parseDef(source, cursor)).to.throw();
+    expect(() => parseDef(source, cursor, false)).to.throw();
   });
 
   it('throws error on variable definition with non-literal initializer', () => {
@@ -310,7 +318,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    expect(() => parseDef(source, cursor)).to.throw();
+    expect(() => parseDef(source, cursor, false)).to.throw();
   });
 
   it('parses a function definition with return type annotation', () => {
@@ -319,7 +327,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    const stmt = parseDef(source, cursor);
+    const stmt = parseDef(source, cursor, false);
     expect(stmt).to.deep.equal({
       tag: "define",
       name: "foo",
@@ -335,7 +343,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    const stmt = parseDef(source, cursor);
+    const stmt = parseDef(source, cursor, false);
     expect(stmt).to.deep.equal({
       tag: "define",
       name: "foo",
@@ -343,6 +351,15 @@ describe('parseDef', () => {
       ret: "none",
       body: [{tag: "return", value: {tag: "id", name: "x"}}]
     });
+  });
+
+  it('throws an error on nested function definition', () => {
+    const source = "def id(x: int) -> int:\n\tdef foo(y: bool) -> bool:\n\t\treturn y\n\treturn x"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    expect(() => parseDef(source, cursor, false)).to.throw();
   });
 });
 
@@ -352,8 +369,8 @@ describe('parseProgram', () => {
     const program = parseProgram(source);
 
     expect(program).to.deep.equal([
-      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 5}},
-      {tag: "vardef", name: "y", type: "bool", value: {tag: "true"}},
+      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 5}, global: true},
+      {tag: "vardef", name: "y", type: "bool", value: {tag: "true"}, global: true},
     ]);
   });
 
@@ -401,7 +418,7 @@ describe('parseProgram', () => {
     const program = parseProgram(source);
 
     expect(program).to.deep.equal([
-      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}},
+      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}, global: true},
       {
         tag: "assign",
         name: "x",
@@ -422,7 +439,7 @@ describe('parseProgram', () => {
         ret: "int",
         body: [{tag: "return", value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "number", value: 1}}}]
       },
-      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}},
+      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}, global: true},
       {
         tag: "assign",
         name: "x",
@@ -436,7 +453,7 @@ describe('parseProgram', () => {
     const program = parseProgram(source);
 
     expect(program).to.deep.equal([
-      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}},
+      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}, global: true},
       {
         tag: "define",
         name: "add1",

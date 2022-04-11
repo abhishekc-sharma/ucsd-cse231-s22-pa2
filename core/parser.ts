@@ -1,14 +1,14 @@
 import { TreeCursor } from 'lezer';
 import {parser} from 'lezer-python';
-import {Parameter, Stmt, Expr, Type, isOp} from './ast';
+import {Parameter, Stmt, Expr, Type, isBinOp} from './ast';
 
 export function parseProgram(source : string) : Array<Stmt<any>> {
   const t = parser.parse(source).cursor();
-
-  // The top node in the program is a Script node with a list of children
-  // that are various statements
   t.firstChild();
+  return parseStmts(source, t, false);
+}
 
+export function parseStmts(source : string, t : TreeCursor, inFunction: boolean) : Array<Stmt<any>> {
   let defMode = true;
   const stmts = [];
   do {
@@ -16,7 +16,7 @@ export function parseProgram(source : string) : Array<Stmt<any>> {
       defMode = false;
       break;
     }
-    stmts.push(parseDef(source, t));
+    stmts.push(parseDef(source, t, inFunction));
   } while(t.nextSibling());
 
   if(defMode) {
@@ -24,9 +24,8 @@ export function parseProgram(source : string) : Array<Stmt<any>> {
   }
 
   do {
-    stmts.push(parseStmt(source, t));
+    stmts.push(parseStmt(source, t, inFunction));
   } while(t.nextSibling());
-
   return stmts;
 }
 
@@ -50,7 +49,7 @@ function isDef(t : TreeCursor) : boolean {
 /*
   Invariant – t must focus on the same node at the end of the traversal
 */
-export function parseDef(s : string, t : TreeCursor) : Stmt<any> {
+export function parseDef(s : string, t : TreeCursor, inFunction: boolean) : Stmt<any> {
   switch(t.type.name) {
     case "AssignStatement":
       t.firstChild(); // focus on variable name
@@ -83,14 +82,17 @@ export function parseDef(s : string, t : TreeCursor) : Stmt<any> {
 
       t.parent(); // focus back on AssignStatement
 
-      return { tag: "vardef", name: vname, type, value }
+      return { tag: "vardef", name: vname, type, value, global: !inFunction }
 
     case "FunctionDefinition":
+      if(inFunction) {
+        throw new Error("Nested function definition not supported: " + s.substring(t.from, t.to));
+      }
       t.firstChild();  // Focus on def
       t.nextSibling(); // Focus on name of function
       let fname = s.substring(t.from, t.to);
       t.nextSibling(); // Focus on ParamList
-      var params = parseParameters(s, t)
+      var params = parseParameters(s, t);
       t.nextSibling(); // Focus on Body or TypeDef
       let ret : Type = "none";
       let maybeTD = t;
@@ -101,10 +103,8 @@ export function parseDef(s : string, t : TreeCursor) : Stmt<any> {
       }
       t.nextSibling(); // Focus on single statement (for now)
       t.firstChild();  // Focus on :
-      const body = [];
-      while(t.nextSibling()) {
-        body.push(parseStmt(s, t));
-      }
+      t.nextSibling();
+      const body = parseStmts(s, t, true);
       t.parent();      // Pop to Body
       t.parent();      // Pop to FunctionDefinition
       return {
@@ -117,9 +117,12 @@ export function parseDef(s : string, t : TreeCursor) : Stmt<any> {
 /*
   Invariant – t must focus on the same node at the end of the traversal
 */
-export function parseStmt(s : string, t : TreeCursor) : Stmt<any> {
+export function parseStmt(s : string, t : TreeCursor, inFunction: boolean) : Stmt<any> {
   switch(t.type.name) {
     case "ReturnStatement":
+      if(!inFunction) {
+        throw new Error("Return statement not allowed outside function body: " + s.substring(t.from, t.to));
+      }
       t.firstChild();  // Focus return keyword
       t.nextSibling(); // Focus expression
       var value = parseExpr(s, t);
@@ -208,7 +211,7 @@ export function parseExpr(s : string, t : TreeCursor) : Expr<any> {
       const lhsExpr = parseExpr(s, t);
       t.nextSibling(); // go to op
       var opStr = s.substring(t.from, t.to);
-      if(!isOp(opStr)) {
+      if(!isBinOp(opStr)) {
         throw new Error(`Unknown or unhandled op: ${opStr}`);
       }
       t.nextSibling(); // go to rhs
