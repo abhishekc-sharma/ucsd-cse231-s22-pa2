@@ -254,6 +254,16 @@ describe('parseStmt', () => {
     expect(stmt).to.deep.equal({tag: "return", value: {tag: "id", name: "x"}});
   });
 
+  it('parses a return statement with no expression', () => {
+    const source = "return"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, true);
+    expect(stmt).to.deep.equal({tag: "return", value: {tag: "none"}});
+  });
+
   it('throws an error on return statement outside a function', () => {
     const source = "return x"
     const cursor = parser.parse(source).cursor();

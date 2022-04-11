@@ -123,8 +123,14 @@ export function parseStmt(s : string, t : TreeCursor, inFunction: boolean) : Stm
       if(!inFunction) {
         throw new Error("Return statement not allowed outside function body: " + s.substring(t.from, t.to));
       }
+
+      if(s.substring(t.from, t.to) === "return") {
+        t.parent();
+        return { tag: "return", value: {tag: "none"}};
+      }
+
       t.firstChild();  // Focus return keyword
-      t.nextSibling(); // Focus expression
+      t.nextSibling();
       var value = parseExpr(s, t);
       t.parent();
       return { tag: "return", value };
