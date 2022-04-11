@@ -72,4 +72,10 @@ describe('run(source, config) function', () => {
     const result = await runTest("a: bool = True\nb: bool = False\na = a and True\na or b");
     expect(result).to.equal(1);
   });
+
+  it('uses None literal', async() => {
+    const result = await runTest("def foo(n: int):\n\treturn None\nprint(foo(5))");
+    expect(importObject.output).to.equal("None\n");
+    expect(result).to.equal(0);
+  });
 });

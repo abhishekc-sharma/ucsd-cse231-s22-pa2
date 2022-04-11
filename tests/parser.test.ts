@@ -163,6 +163,17 @@ describe('parseParameters', () => {
 });
 
 describe('parseExpr', () => {
+  it('parses None literal expression', () => {
+    const source = "None";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+    cursor.firstChild();
+
+    const expr = parseExpr(source, cursor);
+    expect(expr).to.deep.equal({tag: "none"});
+  });
+
   it('parses a integer literal expression', () => {
     const source = "1234";
     const cursor = parser.parse(source).cursor();

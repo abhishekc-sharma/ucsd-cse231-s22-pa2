@@ -190,6 +190,8 @@ export function parseParameters(s : string, t : TreeCursor) : Parameter[] {
 
 export function parseExpr(s : string, t : TreeCursor) : Expr<any> {
   switch(t.type.name) {
+    case "None":
+      return { tag: "none" };
     case "Boolean":
       if(s.substring(t.from, t.to) === "True") { return { tag: "true" }; }
       else { return { tag: "false" }; }
