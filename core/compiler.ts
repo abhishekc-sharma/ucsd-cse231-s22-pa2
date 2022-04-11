@@ -8,7 +8,7 @@ type Env = Map<string, boolean>;
 function variableNames(stmts: Stmt<Type>[]) : string[] {
   const vars : Array<string> = [];
   stmts.forEach((stmt) => {
-    if(stmt.tag === "assign") { vars.push(stmt.name); }
+    if(stmt.tag === "vardef") { vars.push(stmt.name); }
   });
   return vars;
 }
@@ -38,13 +38,14 @@ export function opStmts(op : BinOp) {
     case ">": return [`i32.gt_s`];
     case "and": return [`i32.and`];
     case "or": return [`i32.or`];
-    default:
-      throw new Error(`Unhandled or unknown op: ${op}`);
+    //default:
+    //  throw new Error(`Unhandled or unknown op: ${op}`);
   }
 }
 
 export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
   switch(expr.tag) {
+    case "none": return [`(i32.const 0)`];
     case "number": return [`(i32.const ${expr.value})`];
     case "true": return [`(i32.const 1)`];
     case "false": return [`(i32.const 0)`];
@@ -75,6 +76,20 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
 }
 export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
   switch(stmt.tag) {
+    case "vardef":
+      var litStmts = codeGenExpr(stmt.value, locals);
+      if(locals.has(stmt.name)) { litStmts.push(`(local.set $${stmt.name})`); }
+      else { litStmts.push(`(global.set $${stmt.name})`); }
+      return litStmts;
+    case "assign":
+      var valStmts = codeGenExpr(stmt.value, locals);
+      if(locals.has(stmt.name)) { valStmts.push(`(local.set $${stmt.name})`); }
+      else { valStmts.push(`(global.set $${stmt.name})`); }
+      return valStmts;
+    case "expr":
+      const result = codeGenExpr(stmt.expr, locals);
+      result.push("(local.set $scratch)");
+      return result;
     case "define":
       const withParamsAndVariables = new Map<string, boolean>(locals.entries());
 
@@ -98,15 +113,6 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
       var valStmts = codeGenExpr(stmt.value, locals);
       valStmts.push("return");
       return valStmts;
-    case "assign":
-      var valStmts = codeGenExpr(stmt.value, locals);
-      if(locals.has(stmt.name)) { valStmts.push(`(local.set $${stmt.name})`); }
-      else { valStmts.push(`(global.set $${stmt.name})`); }
-      return valStmts;
-    case "expr":
-      const result = codeGenExpr(stmt.expr, locals);
-      result.push("(local.set $scratch)");
-      return result;
   }
 }
 export function compile(source : string) : string {

@@ -39,7 +39,7 @@ beforeEach(function () {
 // We write end-to-end tests here to make sure the compiler works as expected.
 // You should write enough end-to-end tests until you are confident the compiler
 // runs as expected. 
-/*describe('run(source, config) function', () => {
+describe('run(source, config) function', () => {
   const config = { importObject };
   
   // We can test the behavior of the compiler in several ways:
@@ -62,4 +62,14 @@ beforeEach(function () {
     await runTest("print(True)");
     expect(importObject.output).to.equal("True\n");
   });
-});*/
+
+  it('defines and calls a function', async() => {
+    await runTest("x: int = 2\ndef foo(n: int) -> int:\n\treturn n - x\nprint(foo(5))");
+    expect(importObject.output).to.equal("3\n");
+  });
+
+  it('uses boolean operations', async() => {
+    const result = await runTest("a: bool = True\nb: bool = False\na = a and True\na or b");
+    expect(result).to.equal(1);
+  });
+});
