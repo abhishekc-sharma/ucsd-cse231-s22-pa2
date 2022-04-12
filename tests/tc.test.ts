@@ -172,6 +172,50 @@ describe('tcExpr', () => {
     expect(() => tcExpr({tag: "call", name: "add_pred", args: [{tag: "number", value: 5}, {tag: "true"}]}, env)).to.throw();
   });
 
+  it('typechecks unary operator -', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(), inFunc: false };  
+
+    let ast = tcExpr({
+      tag: "unop",
+      op: "-",
+      expr: {tag: "number", value: 5},
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "unop",
+      op: "-",
+      expr: {tag: "number", value: 5, a: "int"},
+      a: "int"
+    });
+  });
+
+  it('typechecks unary operator not', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(), inFunc: false };  
+
+    let ast = tcExpr({
+      tag: "unop",
+      op: "not",
+      expr: {tag: "true"},
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "unop",
+      op: "not",
+      expr: {tag: "true", a: "bool"},
+      a: "bool"
+    });
+  });
+
+  it('throws error on invalid type to unary operator', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(), inFunc: false };  
+
+    expect(() => tcExpr({
+      tag: "unop",
+      op: "-",
+      expr: {tag: "true"},
+    }, env)).to.throw();
+  });
+
   it('typechecks binary operator +', () => {
     let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(), inFunc: false };  
 

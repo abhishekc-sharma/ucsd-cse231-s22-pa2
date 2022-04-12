@@ -1,4 +1,4 @@
-import { Expr, Stmt, Type, BinOp} from "./ast";
+import { Expr, Stmt, Type, BinOp, UnOp} from "./ast";
 
 export type EnvType =
   | { tag: "variable", type: Type, global: boolean }
@@ -18,17 +18,42 @@ function emptyEnv() : TypingEnv {
   }
 }
 
+type UnOpType =
+  | { expr: Type, res: Type }
+
+type UnOpTypes = { [k in UnOp]: UnOpType }
+
+const unOpTypes: UnOpTypes = {
+  "-": { expr: "int", res: "int" },
+  "not": { expr: "bool", res: "bool" }
+};
+
 type BinOpType =
   | { lhs: Type, rhs: Type, res: Type}
 
-type BinOpTypes = { [k in BinOp]: BinOpType }
+type BinOpTypes = { [k in BinOp]: Array<BinOpType> }
 
 const binOpTypes: BinOpTypes = {
-  "+": { lhs: "int", rhs: "int", res: "int"},
-  "-": { lhs: "int", rhs: "int", res: "int"},
-  ">": { lhs: "int", rhs: "int", res: "bool"},
-  "and": { lhs: "bool", rhs: "bool", res: "bool"},
-  "or": { lhs: "bool", rhs: "bool", res: "bool"},
+  "+": [{ lhs: "int", rhs: "int", res: "int"}],
+  "-": [{ lhs: "int", rhs: "int", res: "int"}],
+  "*": [{ lhs: "int", rhs: "int", res: "int"}],
+  "//": [{ lhs: "int", rhs: "int", res: "int"}],
+  "%": [{ lhs: "int", rhs: "int", res: "int"}],
+  "==": [
+    { lhs: "int", rhs: "int", res: "bool"},
+    { lhs: "bool", rhs: "bool", res: "bool"}
+  ],
+  "!=": [
+    { lhs: "int", rhs: "int", res: "bool"},
+    { lhs: "bool", rhs: "bool", res: "bool"}
+  ],
+  "<=": [{ lhs: "int", rhs: "int", res: "bool"}],
+  ">=": [{ lhs: "int", rhs: "int", res: "bool"}],
+  "<": [{ lhs: "int", rhs: "int", res: "bool"}],
+  ">": [{ lhs: "int", rhs: "int", res: "bool"}],
+  "and": [{ lhs: "bool", rhs: "bool", res: "bool"}],
+  "or": [{ lhs: "bool", rhs: "bool", res: "bool"}],
+  "is": [{ lhs: "none", rhs: "none", res: "bool"}],
 }
 
 export function tcExpr(e : Expr<any>, env: TypingEnv) : Expr<Type> {
@@ -37,21 +62,29 @@ export function tcExpr(e : Expr<any>, env: TypingEnv) : Expr<Type> {
     case "number": return { ...e, a: "int" };
     case "true": return { ...e, a: "bool" };
     case "false": return { ...e, a: "bool" };
+    case "unop": {
+      const exprTyped = tcExpr(e.expr, env);
+      const unOpType = unOpTypes[e.op];
+
+      if(exprTyped.a !== unOpType.expr) {
+        throw new Error(`Invalid type ${exprTyped.a} for unary operator ${e.op}`);
+      }
+
+      return { ...e, expr: exprTyped, a: unOpType.res };
+    }
     case "binop": {
       //TODO: Can this even happen since we will reject during parsing
       //if(!isBinOp(e.op)) {
       //  throw new Error(`Unhandled op ${e.op}`);
       //}
-      const binOpType = binOpTypes[e.op];
 
       const lhsTyped = tcExpr(e.lhs, env);
-      if(lhsTyped.a !== binOpType.lhs) {
-        throw new Error(`Got type ${lhsTyped.a} for lhs of binary operator ${e.op}, expected ${binOpType.lhs}`);
-      }
-
       const rhsTyped = tcExpr(e.rhs, env);
-      if(rhsTyped.a !== binOpType.rhs) {
-        throw new Error(`Got type ${rhsTyped.a} for lhs of binary operator ${e.op}, expected ${binOpType.rhs}`);
+
+      const binOpType = binOpTypes[e.op].filter(binOpType => lhsTyped.a == binOpType.lhs && rhsTyped.a == binOpType.rhs)[0];
+
+      if(!binOpType) {
+        throw new Error(`Invalid types ${lhsTyped.a} and ${rhsTyped.a} for binary operator ${e.op}`);
       }
 
       return { ...e, lhs: lhsTyped, rhs: rhsTyped, a: binOpType.res };

@@ -1,6 +1,6 @@
 import { TreeCursor } from 'lezer';
 import {parser} from 'lezer-python';
-import {Parameter, Stmt, Expr, Type, isBinOp} from './ast';
+import {Parameter, Stmt, Expr, Type, isBinOp, isUnOp} from './ast';
 
 export function parseProgram(source : string) : Array<Stmt<any>> {
   const t = parser.parse(source).cursor();
@@ -230,6 +230,20 @@ export function parseExpr(s : string, t : TreeCursor) : Expr<any> {
         op: opStr,
         lhs: lhsExpr,
         rhs: rhsExpr
+      };
+    case "UnaryExpression":
+      t.firstChild();
+      let unOpStr = s.substring(t.from, t.to);
+      if(!isUnOp(unOpStr)) {
+        throw new Error(`Unknown or unhandled op: ${unOpStr}`);
+      }
+      t.nextSibling(); // go to expr
+      const expr = parseExpr(s, t);
+      t.parent();
+      return {
+        tag: "unop",
+        op: unOpStr,
+        expr: expr,
       };
     //default:
     //  throw new Error(`Unexpected expression: ` + s.substring(t.from, t.to));

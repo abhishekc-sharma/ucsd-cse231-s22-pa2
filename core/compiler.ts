@@ -1,5 +1,5 @@
 import wabt from 'wabt';
-import {Stmt, Expr, Type, BinOp} from './ast';
+import {Stmt, Expr, Type, UnOp, BinOp} from './ast';
 import {parseProgram} from './parser';
 import { tcProgram } from './tc';
 
@@ -31,13 +31,31 @@ export async function run(watSource : string, config: any) : Promise<number> {
   return (wasmModule.instance.exports as any)._start();
 }
 
-export function opStmts(op : BinOp) {
+export function unOpStmts(op : UnOp) {
+  switch(op) {
+    case "-": return [`(i32.const -1)`, `i32.mul`];
+    case "not": return [`(i32.const 1)`, `i32.xor`];
+    //default:
+    //  throw new Error(`Unhandled or unknown op: ${op}`);
+  }
+}
+
+export function binOpStmts(op : BinOp) {
   switch(op) {
     case "+": return [`i32.add`];
     case "-": return [`i32.sub`];
+    case "*": return [`i32.mul`];
+    case "//": return [`i32.div_s`];
+    case "%": return [`i32.rem_s`];
+    case "==": return [`i32.eq`];
+    case "!=": return [`i32.ne`];
+    case "<=": return [`i32.le_s`];
+    case ">=": return [`i32.ge_s`];
+    case "<": return [`i32.lt_s`];
     case ">": return [`i32.gt_s`];
     case "and": return [`i32.and`];
     case "or": return [`i32.or`];
+    case "is": return [`i32.eq`];
     //default:
     //  throw new Error(`Unhandled or unknown op: ${op}`);
   }
@@ -54,10 +72,15 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
       // just check if it's a local variable and assume it is global if not
       if(locals.has(expr.name)) { return [`(local.get $${expr.name})`]; }
       else { return [`(global.get $${expr.name})`]; }
+    case "unop": {
+      const exprs = codeGenExpr(expr.expr, locals);
+      const opstmts = unOpStmts(expr.op);
+      return [...exprs, ...opstmts];
+    }
     case "binop": {
       const lhsExprs = codeGenExpr(expr.lhs, locals);
       const rhsExprs = codeGenExpr(expr.rhs, locals);
-      const opstmts = opStmts(expr.op);
+      const opstmts = binOpStmts(expr.op);
       return [...lhsExprs, ...rhsExprs, ...opstmts];
     }
     case "call":
@@ -74,6 +97,7 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
       return valStmts;
   }
 }
+
 export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
   switch(stmt.tag) {
     case "vardef":

@@ -221,6 +221,27 @@ describe('parseExpr', () => {
     ]});
   });
 
+  it('parses unary expression', () => {
+    const source = "-x";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+    cursor.firstChild();
+
+    const expr = parseExpr(source, cursor);
+    expect(expr).to.deep.equal({tag: "unop", op: "-", expr: {tag: "id", name: "x"}});
+  });
+
+  it('parses unary expression', () => {
+    const source = "~x";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+    cursor.firstChild();
+
+    expect(() => parseExpr(source, cursor)).to.throw();
+  });
+
   it('parses a binary expression', () => {
     const source = "x + 1";
     const cursor = parser.parse(source).cursor();
