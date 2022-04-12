@@ -203,7 +203,14 @@ export function parseExpr(s : string, t : TreeCursor) : Expr<any> {
       if(s.substring(t.from, t.to) === "True") { return { tag: "true" }; }
       else { return { tag: "false" }; }
     case "Number":
-      return { tag: "number", value: Number(s.substring(t.from, t.to)) };
+      let number = Number(s.substring(t.from, t.to));
+      let integer = parseInt(s.substring(t.from, t.to), 10);
+
+      if(integer !== number) {
+        throw new Error(`Invalid integer literal ${s.substring(t.from, t.to)}`);
+      }
+
+      return { tag: "number", value: integer };
     case "VariableName":
       return { tag: "id", name: s.substring(t.from, t.to) };
     case "CallExpression":

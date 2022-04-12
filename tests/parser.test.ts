@@ -185,6 +185,16 @@ describe('parseExpr', () => {
     expect(expr).to.deep.equal({tag: "number", value: 1234});
   });
 
+  it('throws error on floating literal expression', () => {
+    const source = "1234.123";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+    cursor.firstChild();
+
+    expect(() => parseExpr(source, cursor)).to.throw();
+  });
+
   it('parses the boolean literal expression "True"', () => {
     const source = "True";
     const cursor = parser.parse(source).cursor();
