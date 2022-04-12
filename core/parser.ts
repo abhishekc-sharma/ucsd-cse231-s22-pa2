@@ -119,13 +119,14 @@ export function parseDef(s : string, t : TreeCursor, inFunction: boolean) : Stmt
 */
 export function parseStmt(s : string, t : TreeCursor, inFunction: boolean) : Stmt<any> {
   switch(t.type.name) {
+    case "PassStatement":
+      return { tag: "pass" };
     case "ReturnStatement":
       if(!inFunction) {
         throw new Error("Return statement not allowed outside function body: " + s.substring(t.from, t.to));
       }
 
       if(s.substring(t.from, t.to) === "return") {
-        t.parent();
         return { tag: "return", value: {tag: "none"}};
       }
 

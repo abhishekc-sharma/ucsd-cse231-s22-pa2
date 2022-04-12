@@ -259,6 +259,16 @@ describe('tcExpr', () => {
 });
 
 describe('tcStmt', () => {
+  it('typechecks pass statements', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(), inFunc: false };  
+
+    const ast = tcStmt({
+      tag: "pass",
+    }, env); 
+
+    expect(ast).to.deep.equal({ tag: "pass" });
+  });
+
   it('typechecks global variable definition', () => {
     let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(), inFunc: false };  
 

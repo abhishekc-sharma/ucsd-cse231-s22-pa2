@@ -118,4 +118,9 @@ describe('run(source, config) function', () => {
     const result = await runTest(`x: int = 5\ndef id(x: int) -> int:\n\treturn x\nprint(id(x))`);
     expect(importObject.output).to.equal("5\n");
   });
+
+  it('runs pass statement', async () => {
+    const result = await runTest("pass\n0");
+    expect(result).to.equal(0);
+  });
 });

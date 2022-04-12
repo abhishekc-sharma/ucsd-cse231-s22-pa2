@@ -265,6 +265,16 @@ describe('parseExpr', () => {
 });
 
 describe('parseStmt', () => {
+  it('parses a pass statement', () => {
+    const source = "pass"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, true);
+    expect(stmt).to.deep.equal({tag: "pass"});
+  });
+
   it('parses a return statement', () => {
     const source = "return x"
     const cursor = parser.parse(source).cursor();

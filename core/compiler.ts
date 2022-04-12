@@ -100,6 +100,8 @@ export function codeGenExpr(expr : Expr<Type>, locals : Env) : Array<string> {
 
 export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
   switch(stmt.tag) {
+    case "pass":
+      return [];
     case "vardef":
       var litStmts = codeGenExpr(stmt.value, locals);
       if(locals.has(stmt.name)) { litStmts.push(`(local.set $${stmt.name})`); }

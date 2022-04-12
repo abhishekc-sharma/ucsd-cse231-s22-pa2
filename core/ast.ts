@@ -7,6 +7,7 @@ export type Parameter =
   | { name: string, typ: Type }
 
 export type Stmt<A> =
+  | { a?: A, tag: "pass" }
   | { a?: A, tag: "vardef", name: string, type: Type, value: Expr<A>, global: boolean }
   | { a?: A, tag: "assign", name: string, value: Expr<A> }
   | { a?: A, tag: "expr", expr: Expr<A> }

@@ -139,6 +139,9 @@ export function tcExpr(e : Expr<any>, env: TypingEnv) : Expr<Type> {
 
 export function tcStmt(s : Stmt<any>, env : TypingEnv) : Stmt<Type> {
   switch(s.tag) {
+    case "pass": {
+      return { ...s };
+    }
     case "vardef": {
       let envType = env.vars.get(s.name);
       if (envType && !env.inFunc && envType.tag === "function") {
