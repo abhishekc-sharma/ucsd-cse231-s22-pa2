@@ -159,6 +159,8 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
     case "ifelse":
       var ifcondStmts = codeGenExpr(stmt.ifcond, locals);
       var ifbodyStmts = stmt.ifbody.map(s => codeGenStmt(s, locals)).flat().join("\n");
+
+      // reduce all if condition to either just having an if branch or an if-else branch structure
       if(stmt.elifcond && stmt.elsebody) {
         let newElse: Stmt<Type> = { tag: "ifelse", ifcond: stmt.elifcond, ifbody: stmt.elifbody, elsebody: stmt.elsebody };
         let newIfElse: Stmt<Type> = { tag: "ifelse", ifcond: stmt.ifcond, ifbody: stmt.ifbody, elsebody: [newElse] }; 
@@ -192,6 +194,7 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
       }
   }
 }
+
 export function compile(source : string) : string {
   let ast = parseProgram(source);
   ast = tcProgram(ast);
