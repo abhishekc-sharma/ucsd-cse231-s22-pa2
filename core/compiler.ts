@@ -136,9 +136,65 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
         ${stmtsBody}
         (i32.const 0))`];
     case "return":
-      var valStmts = codeGenExpr(stmt.value, locals);
+      var valStmts: Array<string> = [];
+      if(stmt.value) {
+        valStmts = codeGenExpr(stmt.value, locals);
+      } else {
+        valStmts = [`i32.const 0`]; 
+      }
       valStmts.push("return");
       return valStmts;
+    case "while":
+      var condStmts = codeGenExpr(stmt.cond, locals).join("\n");
+      var bodyStmts = stmt.body.map(s => codeGenStmt(s, locals)).flat().join("\n");
+      return [
+      `(block $loop_block
+        (loop $loop_loop
+          ${condStmts}
+          (i32.const 0)
+          (i32.eq)
+          (if
+            (then
+              br $loop_block
+            )
+          )
+          ${bodyStmts}
+          br $loop_loop
+        ))`];
+    case "ifelse":
+      var ifcondStmts = codeGenExpr(stmt.ifcond, locals);
+      var ifbodyStmts = stmt.ifbody.map(s => codeGenStmt(s, locals)).flat().join("\n");
+      if(stmt.elifcond && stmt.elsebody) {
+        let newElse: Stmt<Type> = { tag: "ifelse", ifcond: stmt.elifcond, ifbody: stmt.elifbody, elsebody: stmt.elsebody };
+        let newIfElse: Stmt<Type> = { tag: "ifelse", ifcond: stmt.ifcond, ifbody: stmt.ifbody, elsebody: [newElse] }; 
+        return codeGenStmt(newIfElse, locals);
+      } else if(stmt.elifcond) {
+        let newElse: Stmt<Type> = { tag: "ifelse", ifcond: stmt.elifcond, ifbody: stmt.elifbody };
+        let newIfElse: Stmt<Type> = { tag: "ifelse", ifcond: stmt.ifcond, ifbody: stmt.ifbody, elsebody: [newElse] }; 
+        return codeGenStmt(newIfElse, locals);
+      } else if(stmt.elsebody) {
+        var elsebodyStmts = stmt.elsebody.map(s => codeGenStmt(s, locals)).flat().join("\n");
+        return [
+          ...ifcondStmts,
+          `(if
+            (then
+              ${ifbodyStmts}
+            )
+            (else
+              ${elsebodyStmts} 
+            )
+           )`
+        ];
+      } else {
+        return [
+          ...ifcondStmts,
+          `(if
+            (then
+              ${ifbodyStmts}
+            )
+           )`
+        ]; 
+      }
   }
 }
 export function compile(source : string) : string {

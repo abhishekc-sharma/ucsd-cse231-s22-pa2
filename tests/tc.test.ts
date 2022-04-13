@@ -529,6 +529,48 @@ describe('tcStmt', () => {
     expect(env.vars.get("foo")).to.deep.equal({tag: "function", type: [["int"], "int"]})
   });
 
+  it('typechecks function definition with none return type', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(), inFunc: false };  
+
+    const ast = tcStmt({
+      tag: "define",
+      name: "foo",
+      params: [{name: "x", typ: "int"}],
+      ret: "none",
+      body: [
+        {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1}, global: false},
+      ]
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "define",
+      name: "foo",
+      params: [{name: "x", typ: "int"}],
+      ret: "none",
+      body: [
+        {tag: "vardef", "name": "y", type: "int", value: {tag: "number", value: 1, a: "int"}, global: false},
+      ]
+    });
+
+    expect(env.vars.get("foo")).to.deep.equal({tag: "function", type: [["int"], "none"]})
+  });
+
+  /*it('throws an error when defining a function that does not properly return anything', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
+      "foo": {tag: "function", type: [[], "int"]} 
+    })), inFunc: false };  
+
+    expect(() => tcStmt({
+      tag: "define",
+      name: "bar",
+      params: [{name: "x", typ: "int"}],
+      ret: "int",
+      body: [
+        {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1}, global: false},
+      ]
+    }, env)).to.throw();
+  });*/
+
   it('throws an error when defining a function with existing name', () => {
     let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
       "foo": {tag: "function", type: [[], "int"]} 
@@ -577,6 +619,99 @@ describe('tcStmt', () => {
     });
   });
 
+  it('typechecks while loop', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
+      "n": {tag: "variable", type: "int", global: true},
+      "x": {tag: "variable", type: "bool", global: true} 
+    })), inFunc: false };
+
+    let ast = tcStmt({
+      tag: "while",
+      cond: {tag: "id", name: "x"},
+      body: [
+        {tag: "assign", name: "n", value: {tag: "number", value: 5}},
+        {tag: "expr", expr: {tag: "true"}},
+      ]
+    }, env)
+
+    expect(ast).to.deep.equal({
+      tag: "while",
+      cond: {tag: "id", name: "x", a: "bool"},
+      body: [
+        {tag: "assign", name: "n", value: {tag: "number", value: 5, a: "int"}},
+        {tag: "expr", expr: {tag: "true", a: "bool"}},
+      ]
+    });
+  });
+
+  it('typechecks if elif else ladder', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
+      "n": {tag: "variable", type: "int", global: true},
+      "sum": {tag: "variable", type: "int", global: true} 
+    })), inFunc: false };
+
+    let ast = tcStmt({
+      tag: "ifelse",
+      ifcond: {tag: "true"},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+      elifcond: {tag: "false"},
+      elifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+      elsebody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "ifelse",
+      ifcond: {tag: "true", a: "bool"},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "number", value: 1, a: "int"}, a: "int"}},
+      ],
+      elifcond: {tag: "false", a: "bool"},
+      elifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "number", value: 1, a: "int"}, a: "int"}},
+      ],
+      elsebody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "number", value: 1, a: "int"}, a: "int"}},
+      ],
+    });
+  });
+
+  it('typechecks if statement', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
+      "n": {tag: "variable", type: "int", global: true},
+      "sum": {tag: "variable", type: "int", global: true} 
+    })), inFunc: false };
+
+    let ast = tcStmt({
+      tag: "ifelse",
+      ifcond: {tag: "true"},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "ifelse",
+      ifcond: {tag: "true", a: "bool"},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "number", value: 1, a: "int"}, a: "int"}},
+      ],
+    });
+  });
+
   it('typechecks program - 0', () => {
     const ast = tcProgram([
       {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}, global: true}, 
@@ -591,5 +726,21 @@ describe('tcStmt', () => {
         {tag: "return", value: {tag: "id", name: "x", a: "int"}}
       ]}
     ]);
+  });
+
+  it('typechecks program - 1', () => {
+    expect(() => tcProgram([
+      {tag: "vardef", name: "p", type: "bool", value: {tag: "true"}, global: true}, 
+      {tag: "define", name: "f", ret: "int", params: [{name: "q", typ: "bool"}], body: [
+        { tag: "ifelse", 
+          ifcond: {tag: "binop", op: "<", lhs: {tag: "id", name: "q"}, rhs: {tag: "number", value: 25}},
+          ifbody: [{tag: "return", value: {tag: "number", value: 99}}],
+          elsebody: [{tag: "return", value: {tag: "number", value: 500}}],
+        }
+      ]},
+      {tag: "expr", expr: {tag: "call", name: "print", args: [{tag: "call", name: "f", args: [{tag: "id", name: "p"}]}]}},
+      {tag: "expr", expr: {tag: "call", name: "print", args: [{tag: "call", name: "f", args: [{tag: "false"}]}]}},
+    ])).to.throw();
+
   });
 });

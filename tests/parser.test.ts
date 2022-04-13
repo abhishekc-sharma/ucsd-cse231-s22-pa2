@@ -342,6 +342,129 @@ describe('parseStmt', () => {
     const stmt = parseStmt(source, cursor, false);
     expect(stmt).to.deep.equal({tag: "expr", expr: {tag: "id", name: "x"}});
   });
+
+  it('parses if statement - 0', () => {
+    const source = "if True:\n\tsum = sum + n\n\tn = n + 1";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, false);
+    expect(stmt).to.deep.equal({
+      tag: "ifelse",
+      ifcond: {tag: "true"},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+    });
+  });
+
+  it('parses if statement - 1', () => {
+    const source = "if True:\n\tsum = sum + n\n\tn = n + 1\nelif False:\n\tsum = sum + n\n\tn = n + 1";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, false);
+    expect(stmt).to.deep.equal({
+      tag: "ifelse",
+      ifcond: {tag: "true"},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+      elifcond: {tag: "false"},
+      elifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+    });
+  });
+
+  it('parses if statement - 2', () => {
+    const source = "if True:\n\tsum = sum + n\n\tn = n + 1\nelif False:\n\tsum = sum + n\n\tn = n + 1\nelse:\n\tsum = sum + n\n\tn = n + 1";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, false);
+    expect(stmt).to.deep.equal({
+      tag: "ifelse",
+      ifcond: {tag: "true"},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+      elifcond: {tag: "false"},
+      elifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+      elsebody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+    });
+  });
+
+  it('parses if statement - 3', () => {
+    const source = "if True:\n\tsum = sum + n\n\tn = n + 1\nelse:\n\tsum = sum + n\n\tn = n + 1";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, false);
+    expect(stmt).to.deep.equal({
+      tag: "ifelse",
+      ifcond: {tag: "true"},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+      elsebody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+    });
+  });
+
+  it('throws error on if statement with multiple elif branches', () => {
+    const source = "if True:\n\tsum = sum + n\n\tn = n + 1\nelif False:\n\tsum = sum + n\n\tn = n + 1\nelif False:\n\tsum = sum + n\n\tn = n + 1";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    expect(() => parseStmt(source, cursor, false)).to.throw();
+    
+  })
+
+  it('parses a while loop - 0', () => {
+    const source = "while True:\n\tpass"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, false);
+    expect(stmt).to.deep.equal({tag: "while", cond: {tag: "true"}, body: [{tag: "pass"}]});
+  });
+
+  it('parses a while loop - 1', () => {
+    const source = "while n <= 5:\n\tsum = sum + n\n\tn = n + 1";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, false);
+    expect(stmt).to.deep.equal({
+      tag: "while",
+      cond: {tag: "binop", op: "<=", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 5}},
+      body: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+      ],
+    });
+  });
 });
 
 describe('parseDef', () => {
@@ -414,6 +537,25 @@ describe('parseDef', () => {
       body: [{tag: "return", value: {tag: "id", name: "x"}}]
     });
   });
+
+  it('parses a function definition with multiple statements in function body', () => {
+    const source = "def foo(x: int, y: bool):\n\tx = y\n\treturn x"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseDef(source, cursor, false);
+    expect(stmt).to.deep.equal({
+      tag: "define",
+      name: "foo",
+      params: [ {name: "x", typ: "int"}, {name: "y", typ: "bool"}],
+      ret: "none",
+      body: [
+        {tag: "assign", name: "x", value: {tag: "id", name: "y"}},
+        {tag: "return", value: {tag: "id", name: "x"}}
+      ]
+    });
+  })
 
   it('throws an error on nested function definition', () => {
     const source = "def id(x: int) -> int:\n\tdef foo(y: bool) -> bool:\n\t\treturn y\n\treturn x"

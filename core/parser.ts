@@ -5,19 +5,21 @@ import {Parameter, Stmt, Expr, Type, isBinOp, isUnOp} from './ast';
 export function parseProgram(source : string) : Array<Stmt<any>> {
   const t = parser.parse(source).cursor();
   t.firstChild();
-  return parseStmts(source, t, false);
+  return parseStmts(source, t, false, true);
 }
 
-export function parseStmts(source : string, t : TreeCursor, inFunction: boolean) : Array<Stmt<any>> {
-  let defMode = true;
+export function parseStmts(source : string, t : TreeCursor, inFunction: boolean, defMode: boolean) : Array<Stmt<any>> {
   const stmts = [];
-  do {
-    if(!isDef(t)) {
-      defMode = false;
-      break;
-    }
-    stmts.push(parseDef(source, t, inFunction));
-  } while(t.nextSibling());
+
+  if(defMode) {
+    do {
+      if(!isDef(t)) {
+        defMode = false;
+        break;
+      }
+      stmts.push(parseDef(source, t, inFunction));
+    } while(t.nextSibling());
+  }
 
   if(defMode) {
     return stmts;
@@ -104,7 +106,7 @@ export function parseDef(s : string, t : TreeCursor, inFunction: boolean) : Stmt
       t.nextSibling(); // Focus on single statement (for now)
       t.firstChild();  // Focus on :
       t.nextSibling();
-      const body = parseStmts(s, t, true);
+      const body = parseStmts(s, t, true, true);
       t.parent();      // Pop to Body
       t.parent();      // Pop to FunctionDefinition
       return {
@@ -155,9 +157,72 @@ export function parseStmt(s : string, t : TreeCursor, inFunction: boolean) : Stm
       var expr = parseExpr(s, t);
       t.parent();
       return { tag: "expr", expr: expr };
+    case "WhileStatement":
+      t.firstChild(); // focus on while
+      t.nextSibling(); // focus on loop condition
+      let loopCond = parseExpr(s, t);
+      t.nextSibling(); // focus on loop body
+      t.firstChild(); // focus on :
+      t.nextSibling(); // focus on first statement in body
+      let body = parseStmts(s, t, inFunction, false);
+      t.parent();      // Pop to Body
+      t.parent();      // Pop to WhileStatement
+      return { tag: "while", cond: loopCond, body: body};
+    case "IfStatement":
+      t.firstChild(); // focus on if
+      let {cond: ifCond, body: ifBody} = parseCondAndBody(s, t, inFunction, "if");
+
+      if(!t.nextSibling()) {
+        return { tag: "ifelse", ifcond: ifCond, ifbody: ifBody};
+      }
+
+      let ret: Stmt<any> = { tag: "ifelse", ifcond: ifCond, ifbody: ifBody};
+
+      let elif = parseCondAndBody(s, t, inFunction, "elif");
+      if(elif) {
+        ret.elifcond = elif.cond;
+        ret.elifbody = elif.body;
+
+        if(!t.nextSibling()) {
+          return ret;
+        }
+      }
+
+      if(s.substring(t.from, t.to) != "else") {
+        throw new Error(`Cannot have more than one elif branch`);
+      }
+
+
+      t.nextSibling(); // focus on body
+      t.firstChild(); // focus on ;
+      t.nextSibling(); // focus on first statement in body
+      let elseBody = parseStmts(s, t, inFunction, false);
+      t.parent(); // Pop to Body
+      t.parent(); // Pop to IfStatement
+      ret.elsebody = elseBody;
+      return ret;
     default:
       throw new Error(`Unexpected statement: ` + s.substring(t.from, t.to));
   }
+}
+
+type ElifElse<A> = { cond: Expr<A>, body: Stmt<A>[]} | undefined
+
+function parseCondAndBody(s : string, t : TreeCursor, inFunction: boolean, what: string) : ElifElse<any> {
+  if(s.substring(t.from, t.to) != what) {
+    return undefined;
+  }
+
+  t.nextSibling(); // focus on condition
+  let cond = parseExpr(s, t);
+
+  t.nextSibling(); // focus on body
+  t.firstChild(); // focus on ;
+  t.nextSibling(); // focus on first statement in body
+  let body = parseStmts(s, t, inFunction, false);
+
+  t.parent(); // pop to body
+  return { cond, body };
 }
 
 export function parseType(s : string, t : TreeCursor) : Type {
@@ -253,8 +318,14 @@ export function parseExpr(s : string, t : TreeCursor) : Expr<any> {
         op: unOpStr,
         expr: expr,
       };
-    //default:
-    //  throw new Error(`Unexpected expression: ` + s.substring(t.from, t.to));
+    case "ParenthesizedExpression":
+      t.firstChild(); // focus (
+      t.nextSibling(); // focus on expression
+      let pexpr = parseExpr(s, t);
+      t.parent();
+      return pexpr;
+    default:
+      throw new Error(`Unexpected expression: ` + s.substring(t.from, t.to));
   }
 }
 

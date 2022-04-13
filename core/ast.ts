@@ -13,6 +13,8 @@ export type Stmt<A> =
   | { a?: A, tag: "expr", expr: Expr<A> }
   | { a?: A, tag: "define", name: string, params: Parameter[], ret: Type, body: Stmt<A>[] }
   | { a?: A, tag: "return", value: Expr<A> }
+  | { a?: A, tag: "while", cond: Expr<A>, body: Stmt<A>[] }
+  | { a?: A, tag: "ifelse", ifcond: Expr<A>, ifbody: Stmt<A>[], elifcond?: Expr<A>, elifbody?: Stmt<A>[], elsebody?: Stmt<A>[] }
 
 export type Expr<A> = 
   | { a?: A, tag: "none" }

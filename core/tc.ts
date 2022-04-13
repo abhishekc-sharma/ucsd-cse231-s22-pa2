@@ -185,14 +185,15 @@ export function tcStmt(s : Stmt<any>, env : TypingEnv) : Stmt<Type> {
       if(env.vars.has(s.name)) {
         throw new Error(`Defining function with existing name ${s.name}`);
       }
-      const bodyvars = new Map<string, EnvType>(env.vars.entries());
-      s.params.forEach(p => { bodyvars.set(p.name, {tag: "variable", type: p.typ, global: false})});
-      let newEnv = { ret: s.ret, vars: bodyvars, inFunc: true };
-      const newStmts = s.body.map(bs => tcStmt(bs, newEnv));
       env.vars.set(s.name, {tag: "function", type: [
         s.params.map(p => p.typ),
         s.ret,
       ]});
+      const bodyvars = new Map<string, EnvType>(env.vars.entries());
+      s.params.forEach(p => { bodyvars.set(p.name, {tag: "variable", type: p.typ, global: false})});
+      let newEnv = { ret: s.ret, vars: bodyvars, inFunc: true };
+      const newStmts = s.body.map(bs => tcStmt(bs, newEnv));
+      
       return { ...s, body: newStmts };
     }
     case "expr": {
@@ -205,6 +206,29 @@ export function tcStmt(s : Stmt<any>, env : TypingEnv) : Stmt<Type> {
         throw new Error(`${valTyp} returned but ${env.ret} expected.`);
       }
       return { ...s, value: valTyp };
+    }
+    case "while": {
+      const condTyp = tcExpr(s.cond, env);
+      const newStmts = s.body.map(bs => tcStmt(bs, env));
+
+      return { ...s, cond: condTyp, body: newStmts};
+    }
+    case "ifelse": {
+      const sTyp = { ...s };
+
+      sTyp.ifcond = tcExpr(s.ifcond, env);
+      sTyp.ifbody = s.ifbody.map(bs => tcStmt(bs, env));
+
+      if(s.elifcond) {
+        sTyp.elifcond = tcExpr(s.elifcond, env)
+        sTyp.elifbody = s.elifbody.map(bs => tcStmt(bs, env));
+      }
+
+      if(s.elsebody) {
+        sTyp.elsebody = s.elsebody.map(bs => tcStmt(bs, env));
+      }
+
+      return sTyp;
     }
   }
 }

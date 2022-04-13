@@ -123,4 +123,29 @@ describe('run(source, config) function', () => {
     const result = await runTest("pass\n0");
     expect(result).to.equal(0);
   });
+
+  it('runs a program - 0', async() => {
+    const result = await runTest("x: int = 5\ny: int = 3\ny = x + 1\nx = y + 1\nx");
+    expect(result).to.equal(7);
+  });
+
+  it('runs a program - 1', async() => {
+    const result = await runTest("a : int = 50\ndef f(b : int) -> int:\n\tif b < 25:\n\t\treturn b * 2\n\telse:\n\t\treturn b\nprint(f(a))\nprint(f(10))");
+    expect(importObject.output).to.equal("50\n20\n");
+  });
+
+  it('runs a program - 2', async() => {
+    const result = await runTest("def sum(n : int) -> int:\n\tif n < 1:return 0\n\telse: return sum(n - 1) + n\nsum(4)");
+    expect(result).to.equal(10);
+  });
+
+  it('runs a program - 3', async() => {
+    const result = await runTest("def sum(n : int) -> int:\n\ttotal : int = 0\n\twhile n > 0:\n\t\ttotal = total + n\n\t\tn = n - 1\n\treturn total\n\nsum(4)");
+    expect(result).to.equal(10);
+  });
+
+  it('runs a program - 4', async() => {
+    const result = await runTest("c : int = 10\nd : int = 100\nprint((c * 2) < (d + c))");
+    expect(importObject.output).to.equal("True\n");
+  });
 });
