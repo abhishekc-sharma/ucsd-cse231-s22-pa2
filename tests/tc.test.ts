@@ -555,7 +555,7 @@ describe('tcStmt', () => {
     expect(env.vars.get("foo")).to.deep.equal({tag: "function", type: [["int"], "none"]})
   });
 
-  /*it('throws an error when defining a function that does not properly return anything', () => {
+  it('throws an error when defining a function that does not return on all paths - 0', () => {
     let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
       "foo": {tag: "function", type: [[], "int"]} 
     })), inFunc: false };  
@@ -569,7 +569,155 @@ describe('tcStmt', () => {
         {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1}, global: false},
       ]
     }, env)).to.throw();
-  });*/
+  });
+
+  it('throws an error when defining a function that does not properly return on all paths - 1', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
+      "foo": {tag: "function", type: [[], "int"]} 
+    })), inFunc: false };  
+
+    expect(() => tcStmt({
+      tag: "define",
+      name: "bar",
+      params: [{name: "sum", typ: "int"}, {name: "n", typ: "int"}],
+      ret: "int",
+      body: [
+        {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1}, global: false},
+        {
+          tag: "ifelse",
+          ifcond: {tag: "true"},
+          ifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+          ],
+          elifcond: {tag: "false"},
+          elifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+          ],
+          elsebody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+          ],
+        }
+      ]
+    }, env)).to.throw();
+  });
+
+  it('throws an error when defining a function that does not properly return on all paths - 2', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
+      "foo": {tag: "function", type: [[], "int"]} 
+    })), inFunc: false };  
+
+    expect(() => tcStmt({
+      tag: "define",
+      name: "bar",
+      params: [{name: "sum", typ: "int"}, {name: "n", typ: "int"}],
+      ret: "int",
+      body: [
+        {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1}, global: false},
+        {
+          tag: "ifelse",
+          ifcond: {tag: "true"},
+          ifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+          ],
+          elifcond: {tag: "false"},
+          elifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+          ]
+        }
+      ]
+    }, env)).to.throw();
+  });
+
+  it('throws an error when defining a function that does not properly return on all paths - 3', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
+      "foo": {tag: "function", type: [[], "int"]} 
+    })), inFunc: false };  
+
+    expect(() => tcStmt({
+      tag: "define",
+      name: "bar",
+      params: [{name: "sum", typ: "int"}, {name: "n", typ: "int"}],
+      ret: "int",
+      body: [
+        {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1}, global: false},
+        {
+          tag: "ifelse",
+          ifcond: {tag: "true"},
+          ifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+            {tag: "return", value: {tag: "id", name: "sum"}},
+          ],
+          elifcond: {tag: "false"},
+          elifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+          ],
+          elsebody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+          ],
+        }
+      ]
+    }, env)).to.throw();
+  })
+
+  it('typechecks defining a function that does not properly return on all paths with return type none', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
+      "foo": {tag: "function", type: [[], "int"]} 
+    })), inFunc: false };  
+
+    let ast = tcStmt({
+      tag: "define",
+      name: "bar",
+      params: [{name: "sum", typ: "int"}, {name: "n", typ: "int"}],
+      ret: "none",
+      body: [
+        {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1}, global: false},
+        {
+          tag: "ifelse",
+          ifcond: {tag: "true"},
+          ifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+          ],
+          elifcond: {tag: "false"},
+          elifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+          ]
+        }
+      ]
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "define",
+      name: "bar",
+      params: [{name: "sum", typ: "int"}, {name: "n", typ: "int"}],
+      ret: "none",
+      body: [
+        {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1, a: "int"}, global: false},
+        {
+          tag: "ifelse",
+          ifcond: {tag: "true", a: "bool"},
+          ifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "number", value: 1, a: "int"}, a: "int"}},
+          ],
+          elifcond: {tag: "false", a: "bool"},
+          elifbody: [
+            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}},
+            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "number", value: 1, a: "int"}, a: "int"}},
+          ]
+        }
+      ]
+    });
+  });
 
   it('throws an error when defining a function with existing name', () => {
     let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
@@ -580,6 +728,23 @@ describe('tcStmt', () => {
       tag: "define",
       name: "foo",
       params: [{name: "x", typ: "int"}],
+      ret: "int",
+      body: [
+        {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1}, global: false},
+        {tag: "return", value: {tag: "id", name: "x"}}
+      ]
+    }, env)).to.throw();
+  });
+
+  it('throws an error when defining a function with duplicate parameter name', () => {
+    let env: TypingEnv = { ret: "none", vars: new Map<string, EnvType>(Object.entries({
+      "bar": {tag: "function", type: [[], "int"]} 
+    })), inFunc: false };  
+
+    expect(() => tcStmt({
+      tag: "define",
+      name: "foo",
+      params: [{name: "x", typ: "int"}, {name: "x", typ: "int"}],
       ret: "int",
       body: [
         {tag: "vardef", name: "y", type: "int", value: {tag: "number", value: 1}, global: false},

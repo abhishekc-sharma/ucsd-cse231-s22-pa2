@@ -1,4 +1,4 @@
-import { Expr, Stmt, Type, BinOp, UnOp} from "./ast";
+import { Expr, Stmt, Type, BinOp, UnOp, Parameter} from "./ast";
 
 export type EnvType =
   | { tag: "variable", type: Type, global: boolean }
@@ -137,6 +137,38 @@ export function tcExpr(e : Expr<any>, env: TypingEnv) : Expr<Type> {
   }
 }
 
+function definitelyReturns(s : Stmt<Type>) : boolean {
+  if(s.tag === "return") {
+    return true;
+  } else if(s.tag === "ifelse") {
+    if(!s.elsebody) {
+      return false;
+    }
+
+    let ret = true;
+
+    ret = ret && s.ifbody.findIndex(definitelyReturns) !== -1;
+    if(s.elifbody) {
+      ret = ret && s.elifbody.findIndex(definitelyReturns) !== -1;
+    }
+    ret = ret && s.elsebody.findIndex(definitelyReturns) !== -1;
+    return ret;
+  } else {
+    return false;
+  }
+}
+
+function checkDuplicateParams(params: Array<Parameter>) {
+  let s = new Set();
+  params.forEach(p => {
+    if(s.has(p.name)) {
+      throw new Error(`Duplicate declaration of identier in same scope: ${p.name}`);
+    }
+
+    s.add(p.name);
+  });
+}
+
 export function tcStmt(s : Stmt<any>, env : TypingEnv) : Stmt<Type> {
   switch(s.tag) {
     case "pass": {
@@ -190,9 +222,15 @@ export function tcStmt(s : Stmt<any>, env : TypingEnv) : Stmt<Type> {
         s.ret,
       ]});
       const bodyvars = new Map<string, EnvType>(env.vars.entries());
+      checkDuplicateParams(s.params);
+
       s.params.forEach(p => { bodyvars.set(p.name, {tag: "variable", type: p.typ, global: false})});
       let newEnv = { ret: s.ret, vars: bodyvars, inFunc: true };
       const newStmts = s.body.map(bs => tcStmt(bs, newEnv));
+
+      if(s.ret !== "none" && s.body.findIndex(definitelyReturns) === -1) {
+        throw new Error(`All paths in this function/method must have a return statement: ${s.name}`);
+      }
       
       return { ...s, body: newStmts };
     }
@@ -235,23 +273,5 @@ export function tcStmt(s : Stmt<any>, env : TypingEnv) : Stmt<Type> {
 
 export function tcProgram(p : Stmt<any>[]) : Stmt<Type>[] {
   const env = emptyEnv();
-  /*p.forEach(s => {
-    if(s.tag === "define") {
-      functions.set(s.name, [s.params.map(p => p.typ), s.ret]);
-    }
-  });*/
-
-  /*return p.map(s => {
-    if(s.tag === "vardef") {
-      const rhs = tcExpr(s.value, functions, globals);
-      globals.set(s.name, rhs.a);
-      return { ...s, value: rhs };
-    }
-    else {
-      const res = tcStmt(s, functions, globals, "none");
-      return res;
-    }
-  });*/
-
- return p.map(s => tcStmt(s, env));
+  return p.map(s => tcStmt(s, env));
 }

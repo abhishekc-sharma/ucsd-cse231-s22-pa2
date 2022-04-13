@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build-web": "webpack && cp web/index.html build-web/",
-    "build-cli": "tsc cli/node-main.ts -t es2019 --lib es2019.array --lib dom --esModuleInterop --moduleResolution node --outDir build-cli/",
+    "build-cli": "tsc cli/node-main.ts -t es2019 --lib es2019,dom --esModuleInterop --moduleResolution node --outDir build-cli/",
     "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' mocha -r ts-node/register 'tests/**/*.test.ts'",
     "test-coverage": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' nyc mocha -r ts-node/register 'tests/**/*.test.ts'"
   },

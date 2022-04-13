@@ -136,12 +136,7 @@ export function codeGenStmt(stmt : Stmt<Type>, locals : Env) : Array<string> {
         ${stmtsBody}
         (i32.const 0))`];
     case "return":
-      var valStmts: Array<string> = [];
-      if(stmt.value) {
-        valStmts = codeGenExpr(stmt.value, locals);
-      } else {
-        valStmts = [`i32.const 0`]; 
-      }
+      var valStmts = codeGenExpr(stmt.value, locals);
       valStmts.push("return");
       return valStmts;
     case "while":

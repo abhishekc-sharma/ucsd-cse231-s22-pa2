@@ -124,6 +124,21 @@ describe('run(source, config) function', () => {
     expect(result).to.equal(0);
   });
 
+  it('runs if elif else ladder', async() => {
+    const result = await runTest("a: int = 5\nif a > 5:\n\tprint(True)\nelif a == 5:\n\tprint(False)\nelse:\n\tprint(None)");
+    expect(importObject.output).to.equal("False\n");
+  });
+
+  it('runs if elif ladder', async() => {
+    const result = await runTest("a: int = 6\nif a > 5:\n\tprint(True)\nelif a == 5:\n\tprint(False)");
+    expect(importObject.output).to.equal("True\n");
+  });
+
+  it('run function with early None return', async() => {
+    const result = await runTest("def foo(n: int):\n\tif n < 5:\n\t\treturn\n\telse:\n\t\tprint(n)\na:int = 2\nfoo(a)");
+    expect(importObject.output).to.equal("");
+  });
+
   it('runs a program - 0', async() => {
     const result = await runTest("x: int = 5\ny: int = 3\ny = x + 1\nx = y + 1\nx");
     expect(result).to.equal(7);
