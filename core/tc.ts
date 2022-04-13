@@ -352,12 +352,15 @@ export function tcStmt(s : Stmt<any>, env : TypingEnv) : Stmt<Type> {
     case "return": {
       const valTyp = tcExpr(s.value, env);
       if(valTyp.a !== env.ret) {
-        throw new Error(`TypeError: ${valTyp} returned but ${env.ret} expected`);
+        throw new Error(`TypeError: ${valTyp.a} returned but ${env.ret} expected`);
       }
       return { ...s, value: valTyp };
     }
     case "while": {
       const condTyp = tcExpr(s.cond, env);
+      if(condTyp.a !== "bool") {
+          throw new Error(`TypeError: Condition expression cannot be of type ${condTyp.a}`);
+      }
       const newStmts = s.body.map(bs => tcStmt(bs, env));
 
       return { ...s, cond: condTyp, body: newStmts};
@@ -366,10 +369,17 @@ export function tcStmt(s : Stmt<any>, env : TypingEnv) : Stmt<Type> {
       const sTyp = { ...s };
 
       sTyp.ifcond = tcExpr(s.ifcond, env);
+      if(sTyp.ifcond.a !== "bool") {
+        throw new Error(`TypeError: Condition expression cannot be of type ${sTyp.ifcond.a}`);
+      }
+
       sTyp.ifbody = s.ifbody.map(bs => tcStmt(bs, env));
 
       if(s.elifcond) {
-        sTyp.elifcond = tcExpr(s.elifcond, env)
+        sTyp.elifcond = tcExpr(s.elifcond, env);
+        if(sTyp.elifcond.a !== "bool") {
+          throw new Error(`TypeError: Condition expression cannot be of type ${sTyp.elifcond.a}`);
+        }
         sTyp.elifbody = s.elifbody.map(bs => tcStmt(bs, env));
       }
 

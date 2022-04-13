@@ -214,6 +214,7 @@ export function parseStmt(s : string, t : TreeCursor, inFunction: boolean) : Stm
 
       if(!t.nextSibling()) {
         // no elif or else, just return what we have so far
+        t.parent(); // focus on IfStatement
         return { tag: "ifelse", ifcond: ifCond, ifbody: ifBody};
       }
 
@@ -229,6 +230,7 @@ export function parseStmt(s : string, t : TreeCursor, inFunction: boolean) : Stm
 
         if(!t.nextSibling()) {
           // no else branch, just return what we have so far
+          t.parent(); // focus on IfStatement
           return ret;
         }
       }
