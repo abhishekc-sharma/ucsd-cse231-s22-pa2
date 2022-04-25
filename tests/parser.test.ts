@@ -1,6 +1,6 @@
 import {expect} from 'chai'
-import { parser } from 'lezer-python'
-import { parseProgram, parseStmt, parseDef, parseExpr, parseType, parseParameters, parseArguments } from '../core/parser'
+import {parser} from 'lezer-python'
+import {parseProgram, parseStmt, parseDef, parseExpr, parseLiteral, parseType, parseParameters, parseArguments} from '../core/parser'
 
 describe('parseType', () => {
   it('parses type int', () => {
@@ -14,7 +14,7 @@ describe('parseType', () => {
     cursor.firstChild();
     cursor.nextSibling();
 
-    const type = parseType(source, cursor); 
+    const type = parseType(source, cursor);
     expect(type).to.equal("int");
   });
 
@@ -29,7 +29,7 @@ describe('parseType', () => {
     cursor.firstChild();
     cursor.nextSibling();
 
-    const type = parseType(source, cursor); 
+    const type = parseType(source, cursor);
     expect(type).to.equal("bool");
   });
 
@@ -59,7 +59,7 @@ describe('parseArguments', () => {
     cursor.firstChild();
     cursor.nextSibling();
 
-    const args = parseArguments(source, cursor); 
+    const args = parseArguments(source, cursor);
     expect(args).to.deep.equal([]);
   });
 
@@ -72,7 +72,7 @@ describe('parseArguments', () => {
     cursor.firstChild();
     cursor.nextSibling();
 
-    const args = parseArguments(source, cursor); 
+    const args = parseArguments(source, cursor);
     expect(args).to.deep.equal([{tag: "id", name: "x"}]);
   });
 
@@ -85,11 +85,11 @@ describe('parseArguments', () => {
     cursor.firstChild();
     cursor.nextSibling();
 
-    const args = parseArguments(source, cursor); 
+    const args = parseArguments(source, cursor);
     expect(args).to.deep.equal([
       {tag: "id", name: "x"},
-      {tag: "number", value: 2},
-      {tag: "false"},
+      {tag: "literal", value: {tag: "number", value: 2}},
+      {tag: "literal", value: {tag: "false"}},
     ]);
   });
 });
@@ -162,61 +162,63 @@ describe('parseParameters', () => {
   })
 });
 
-describe('parseExpr', () => {
-  it('parses None literal expression', () => {
+describe('parseLiteral', () => {
+  it('parses None literal', () => {
     const source = "None";
     const cursor = parser.parse(source).cursor();
 
     cursor.firstChild();
     cursor.firstChild();
 
-    const expr = parseExpr(source, cursor);
-    expect(expr).to.deep.equal({tag: "none"});
+    const literal = parseLiteral(source, cursor);
+    expect(literal).to.deep.equal({tag: "none"});
   });
 
-  it('parses a integer literal expression', () => {
+  it('parses a integer literal', () => {
     const source = "1234";
     const cursor = parser.parse(source).cursor();
 
     cursor.firstChild();
     cursor.firstChild();
 
-    const expr = parseExpr(source, cursor);
-    expect(expr).to.deep.equal({tag: "number", value: 1234});
+    const literal = parseLiteral(source, cursor);
+    expect(literal).to.deep.equal({tag: "number", value: 1234});
   });
 
-  it('throws error on floating literal expression', () => {
+  it('throws error on floating literal', () => {
     const source = "1234.123";
     const cursor = parser.parse(source).cursor();
 
     cursor.firstChild();
     cursor.firstChild();
 
-    expect(() => parseExpr(source, cursor)).to.throw();
+    expect(() => parseLiteral(source, cursor)).to.throw();
   });
 
-  it('parses the boolean literal expression "True"', () => {
+  it('parses the boolean literal "True"', () => {
     const source = "True";
     const cursor = parser.parse(source).cursor();
 
     cursor.firstChild();
     cursor.firstChild();
 
-    const expr = parseExpr(source, cursor);
+    const expr = parseLiteral(source, cursor);
     expect(expr).to.deep.equal({tag: "true"});
   });
 
-  it('parses the boolean literal expression "False"', () => {
+  it('parses the boolean literal "False"', () => {
     const source = "False";
     const cursor = parser.parse(source).cursor();
 
     cursor.firstChild();
     cursor.firstChild();
 
-    const expr = parseExpr(source, cursor);
+    const expr = parseLiteral(source, cursor);
     expect(expr).to.deep.equal({tag: "false"});
   });
+});
 
+describe('parseExpr', () => {
   it('parses a function call expression', () => {
     const source = "foo(bar, baz)";
     const cursor = parser.parse(source).cursor();
@@ -225,10 +227,12 @@ describe('parseExpr', () => {
     cursor.firstChild();
 
     const expr = parseExpr(source, cursor);
-    expect(expr).to.deep.equal({tag: "call", name: "foo", args: [
-      {tag: "id", name: "bar"},
-      {tag: "id", name: "baz"},
-    ]});
+    expect(expr).to.deep.equal({
+      tag: "call", name: "foo", args: [
+        {tag: "id", name: "bar"},
+        {tag: "id", name: "baz"},
+      ]
+    });
   });
 
   it('parses unary expression', () => {
@@ -260,7 +264,7 @@ describe('parseExpr', () => {
     cursor.firstChild();
 
     const expr = parseExpr(source, cursor);
-    expect(expr).to.deep.equal({tag: "binop", op: "+", lhs: {tag: "id", name: "x"}, rhs: {tag: "number", value: 1}});
+    expect(expr).to.deep.equal({tag: "binop", op: "+", lhs: {tag: "id", name: "x"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}});
   });
 
   it('throws error on binary expression with invalid/unknown operator', () => {
@@ -302,7 +306,7 @@ describe('parseStmt', () => {
     cursor.firstChild();
 
     const stmt = parseStmt(source, cursor, true);
-    expect(stmt).to.deep.equal({tag: "return", value: {tag: "none"}});
+    expect(stmt).to.deep.equal({tag: "return", value: {tag: "literal", value: {tag: "none"}}});
   });
 
   it('throws an error on return statement outside a function', () => {
@@ -321,7 +325,7 @@ describe('parseStmt', () => {
     cursor.firstChild();
 
     const stmt = parseStmt(source, cursor, false);
-    expect(stmt).to.deep.equal({tag: "assign", name: "x", value: {tag: "number", value: 10}});
+    expect(stmt).to.deep.equal({tag: "assign", name: "x", value: {tag: "literal", value: {tag: "number", value: 10}}});
   });
 
   it('throws error on assignment statement with type annotation', () => {
@@ -352,10 +356,10 @@ describe('parseStmt', () => {
     const stmt = parseStmt(source, cursor, false);
     expect(stmt).to.deep.equal({
       tag: "ifelse",
-      ifcond: {tag: "true"},
+      ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
         {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -369,15 +373,15 @@ describe('parseStmt', () => {
     const stmt = parseStmt(source, cursor, false);
     expect(stmt).to.deep.equal({
       tag: "ifelse",
-      ifcond: {tag: "true"},
+      ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
         {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
-      elifcond: {tag: "false"},
+      elifcond: {tag: "literal", value: {tag: "false"}},
       elifbody: [
         {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -391,19 +395,19 @@ describe('parseStmt', () => {
     const stmt = parseStmt(source, cursor, false);
     expect(stmt).to.deep.equal({
       tag: "ifelse",
-      ifcond: {tag: "true"},
+      ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
         {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
-      elifcond: {tag: "false"},
+      elifcond: {tag: "literal", value: {tag: "false"}},
       elifbody: [
         {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elsebody: [
         {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -417,14 +421,14 @@ describe('parseStmt', () => {
     const stmt = parseStmt(source, cursor, false);
     expect(stmt).to.deep.equal({
       tag: "ifelse",
-      ifcond: {tag: "true"},
+      ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
         {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elsebody: [
         {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -436,7 +440,7 @@ describe('parseStmt', () => {
     cursor.firstChild();
 
     expect(() => parseStmt(source, cursor, false)).to.throw();
-    
+
   })
 
   it('parses a while loop - 0', () => {
@@ -446,7 +450,7 @@ describe('parseStmt', () => {
     cursor.firstChild();
 
     const stmt = parseStmt(source, cursor, false);
-    expect(stmt).to.deep.equal({tag: "while", cond: {tag: "true"}, body: [{tag: "pass"}]});
+    expect(stmt).to.deep.equal({tag: "while", cond: {tag: "literal", value: {tag: "true"}}, body: [{tag: "pass"}]});
   });
 
   it('parses a while loop - 1', () => {
@@ -458,10 +462,10 @@ describe('parseStmt', () => {
     const stmt = parseStmt(source, cursor, false);
     expect(stmt).to.deep.equal({
       tag: "while",
-      cond: {tag: "binop", op: "<=", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 5}},
+      cond: {tag: "binop", op: "<=", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 5}}},
       body: [
         {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "number", value: 1}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -475,7 +479,7 @@ describe('parseDef', () => {
     cursor.firstChild();
 
     const stmt = parseDef(source, cursor, true);
-    expect(stmt).to.deep.equal({tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 10}, global: false});
+    expect(stmt).to.deep.equal({tag: "variable", def: {name: "x", type: "int", value: {tag: "number", value: 10}}});
   });
 
   it('parses a boolean variable definition', () => {
@@ -485,7 +489,7 @@ describe('parseDef', () => {
     cursor.firstChild();
 
     const stmt = parseDef(source, cursor, false);
-    expect(stmt).to.deep.equal({tag: "vardef", name: "x", type: "bool", value: {tag: "true"}, global: true});
+    expect(stmt).to.deep.equal({tag: "variable", def: {name: "x", type: "bool", value: {tag: "true"}}});
   });
 
   it('throws error on variable definition with missing type annotation', () => {
@@ -514,11 +518,14 @@ describe('parseDef', () => {
 
     const stmt = parseDef(source, cursor, false);
     expect(stmt).to.deep.equal({
-      tag: "define",
-      name: "foo",
-      params: [ {name: "x", typ: "int"}, {name: "y", typ: "bool"}],
-      ret: "int",
-      body: [{tag: "return", value: {tag: "id", name: "x"}}]
+      tag: "function",
+      def: {
+        name: "foo",
+        params: [{name: "x", typ: "int"}, {name: "y", typ: "bool"}],
+        ret: "int",
+        defs: [],
+        body: [{tag: "return", value: {tag: "id", name: "x"}}]
+      }
     });
   });
 
@@ -530,11 +537,14 @@ describe('parseDef', () => {
 
     const stmt = parseDef(source, cursor, false);
     expect(stmt).to.deep.equal({
-      tag: "define",
-      name: "foo",
-      params: [ {name: "x", typ: "int"}, {name: "y", typ: "bool"}],
-      ret: "none",
-      body: [{tag: "return", value: {tag: "id", name: "x"}}]
+      tag: "function",
+      def: {
+        name: "foo",
+        params: [{name: "x", typ: "int"}, {name: "y", typ: "bool"}],
+        ret: "none",
+        defs: [],
+        body: [{tag: "return", value: {tag: "id", name: "x"}}]
+      }
     });
   });
 
@@ -546,14 +556,17 @@ describe('parseDef', () => {
 
     const stmt = parseDef(source, cursor, false);
     expect(stmt).to.deep.equal({
-      tag: "define",
-      name: "foo",
-      params: [ {name: "x", typ: "int"}, {name: "y", typ: "bool"}],
-      ret: "none",
-      body: [
-        {tag: "assign", name: "x", value: {tag: "id", name: "y"}},
-        {tag: "return", value: {tag: "id", name: "x"}}
-      ]
+      tag: "function",
+      def: {
+        name: "foo",
+        params: [{name: "x", typ: "int"}, {name: "y", typ: "bool"}],
+        ret: "none",
+        defs: [],
+        body: [
+          {tag: "assign", name: "x", value: {tag: "id", name: "y"}},
+          {tag: "return", value: {tag: "id", name: "x"}}
+        ]
+      }
     });
   })
 
@@ -572,105 +585,141 @@ describe('parseProgram', () => {
     const source = "x: int = 5\ny: bool = True"
     const program = parseProgram(source);
 
-    expect(program).to.deep.equal([
-      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 5}, global: true},
-      {tag: "vardef", name: "y", type: "bool", value: {tag: "true"}, global: true},
-    ]);
+    expect(program).to.deep.equal({
+      defs: [
+        {tag: "variable", def: {name: "x", type: "int", value: {tag: "number", value: 5}}},
+        {tag: "variable", def: {name: "y", type: "bool", value: {tag: "true"}}},
+      ],
+      stmts: [],
+    });
   });
 
   it('parses a program with function definitions', () => {
     const source = "def id(x: bool) -> bool:\n\treturn x\ndef add1(x: int) -> int:\n\treturn x + 1"
     const program = parseProgram(source);
 
-    expect(program).to.deep.equal([
-      {
-        tag: "define",
-        name: "id",
-        params: [ {name: "x", typ: "bool"}],
-        ret: "bool",
-        body: [{tag: "return", value: {tag: "id", name: "x"}}]
-      },
-      {
-        tag: "define",
-        name: "add1",
-        params: [ {name: "x", typ: "int"}],
-        ret: "int",
-        body: [{tag: "return", value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "number", value: 1}}}]
-      }
-    ]);
+    expect(program).to.deep.equal({
+      defs: [
+        {
+          tag: "function",
+          def: {
+            name: "id",
+            params: [{name: "x", typ: "bool"}],
+            ret: "bool",
+            defs: [],
+            body: [{tag: "return", value: {tag: "id", name: "x"}}]
+          }
+        },
+        {
+          tag: "function",
+          def: {
+            name: "add1",
+            params: [{name: "x", typ: "int"}],
+            ret: "int",
+            defs: [],
+            body: [{tag: "return", value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "literal", value: {tag: "number", value: 1}}}}]
+          }
+        }
+      ],
+      stmts: [],
+    });
   });
 
   it('parses a program with statements', () => {
     const source = "True\nx = 5"
     const program = parseProgram(source);
 
-    expect(program).to.deep.equal([
-      {
-        tag: "expr",
-        expr: {tag: "true"},
-      },
-      {
-        tag: "assign",
-        name: "x",
-        value: {tag: "number", value: 5}
-      }
-    ]);
+    expect(program).to.deep.equal({
+      defs: [],
+      stmts: [
+        {
+          tag: "expr",
+          expr: {tag: "literal", value: {tag: "true"}},
+        },
+        {
+          tag: "assign",
+          name: "x",
+          value: {tag: "literal", value: {tag: "number", value: 5}},
+        }
+      ]
+    });
   });
 
   it('parses a program with variable definitions followed by statements', () => {
     const source = "x: int = 0\nx = x + 1"
     const program = parseProgram(source);
 
-    expect(program).to.deep.equal([
-      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}, global: true},
-      {
-        tag: "assign",
-        name: "x",
-        value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "number", value: 1}}
-      }
-    ]);
+    expect(program).to.deep.equal({
+      defs: [
+        {tag: "variable", def: {name: "x", type: "int", value: {tag: "number", value: 0}}},
+
+      ],
+      stmts: [
+        {
+          tag: "assign",
+          name: "x",
+          value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "literal", value: {tag: "number", value: 1}}},
+        }
+      ]
+    });
   });
 
   it('parses a program with variable and function definitions followed by statements - 0', () => {
     const source = "def add1(x: int) -> int:\n\treturn x + 1\nx: int = 0\nx = add1(x)"
     const program = parseProgram(source);
 
-    expect(program).to.deep.equal([
-      {
-        tag: "define",
-        name: "add1",
-        params: [ {name: "x", typ: "int"}],
-        ret: "int",
-        body: [{tag: "return", value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "number", value: 1}}}]
-      },
-      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}, global: true},
-      {
-        tag: "assign",
-        name: "x",
-        value: {tag: "call", name: "add1", args: [{tag: "id", name: "x"}]}
-      }
-    ]);
+    expect(program).to.deep.equal({
+      defs: [
+        {
+          tag: "function",
+          def: {
+            name: "add1",
+            params: [{name: "x", typ: "int"}],
+            ret: "int",
+            defs: [],
+            body: [{tag: "return", value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "literal", value: {tag: "number", value: 1}}}}]
+          }
+        },
+        {tag: "variable", def: {name: "x", type: "int", value: {tag: "number", value: 0}}},
+
+      ],
+      stmts: [
+        {
+          tag: "assign",
+          name: "x",
+          value: {tag: "call", name: "add1", args: [{tag: "id", name: "x"}]}
+        }
+      ]
+    });
   });
 
   it('parses a program with variable and function definitions followed by statements - 1', () => {
     const source = "x: int = 0\ndef add1(x: int) -> int:\n\treturn x + 1\nx = add1(x)"
     const program = parseProgram(source);
 
-    expect(program).to.deep.equal([
-      {tag: "vardef", name: "x", type: "int", value: {tag: "number", value: 0}, global: true},
-      {
-        tag: "define",
-        name: "add1",
-        params: [ {name: "x", typ: "int"}],
-        ret: "int",
-        body: [{tag: "return", value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "number", value: 1}}}]
-      },
-      {
-        tag: "assign",
-        name: "x",
-        value: {tag: "call", name: "add1", args: [{tag: "id", name: "x"}]}
-      }
-    ]);
+    expect(program).to.deep.equal({
+      defs: [
+        {tag: "variable", def: {name: "x", type: "int", value: {tag: "number", value: 0}}},
+        {
+          tag: "function",
+          def: {
+            name: "add1",
+            params: [{name: "x", typ: "int"}],
+            ret: "int",
+            defs: [],
+            body: [{tag: "return", value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "literal", value: {tag: "number", value: 1}}}}]
+          }
+        },
+
+      ],
+      stmts: [
+        {
+          tag: "assign",
+          name: "x",
+          value: {tag: "call", name: "add1", args: [{tag: "id", name: "x"}]}
+        }
+      ]
+    });
   });
 
   it('throws error when variable definition occurs after statements', () => {
@@ -683,4 +732,3 @@ describe('parseProgram', () => {
     expect(() => parseProgram(source)).to.throw();
   });
 });
-
