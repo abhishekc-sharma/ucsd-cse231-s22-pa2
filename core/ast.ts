@@ -2,6 +2,7 @@ export type Type =
   | "int"
   | "bool"
   | "none"
+  | {tag: "object", name: string}
 
 export type Program<A> = {defs: Def<A>[], stmts: Stmt<A>[]}
 
@@ -19,11 +20,12 @@ export type VarDef<A> = {a?: A, name: string, type: Type, value: Literal<A>}
 
 export type FunDef<A> = {a?: A, name: string, params: Parameter[], ret: Type, defs: Def<A>[], body: Stmt<A>[]}
 
+export type ClassDef<A> = {a?: A, name: string, parent: string, fields: VarDef<A>[], methods: FunDef<A>[]}
+
 export type Def<A> =
   | {a?: A, tag: "variable", def: VarDef<A>}
   | {a?: A, tag: "function", def: FunDef<A>}
-
-export type ClassDef<A> = {a?: A, name: string, super: string, fields: VarDef<A>[], methods: FunDef<A>[]}
+  | {a?: A, tag: "class", def: ClassDef<A>}
 
 export type Stmt<A> =
   | {a?: A, tag: "pass"}

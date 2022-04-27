@@ -33,8 +33,8 @@ describe('parseType', () => {
     expect(type).to.equal("bool");
   });
 
-  it('throws error on invalid type', () => {
-    const source = "x : unknown = True";
+  it('parses class type', () => {
+    const source = "x : Foo = None";
     const cursor = parser.parse(source).cursor();
 
     cursor.firstChild();
@@ -44,7 +44,8 @@ describe('parseType', () => {
     cursor.firstChild();
     cursor.nextSibling();
 
-    expect(() => parseType(source, cursor)).to.throw();
+    const type = parseType(source, cursor);
+    expect(type).to.deep.equal({tag: "object", name: "Foo"});
   });
 
 });
@@ -285,7 +286,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, true);
+    const stmt = parseStmt(source, cursor, {inFunction: true, inClass: false});
     expect(stmt).to.deep.equal({tag: "pass"});
   });
 
@@ -295,7 +296,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, true);
+    const stmt = parseStmt(source, cursor, {inFunction: true, inClass: false});
     expect(stmt).to.deep.equal({tag: "return", value: {tag: "id", name: "x"}});
   });
 
@@ -305,7 +306,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, true);
+    const stmt = parseStmt(source, cursor, {inFunction: true, inClass: false});
     expect(stmt).to.deep.equal({tag: "return", value: {tag: "literal", value: {tag: "none"}}});
   });
 
@@ -315,7 +316,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    expect(() => parseStmt(source, cursor, false)).to.throw();
+    expect(() => parseStmt(source, cursor, {inFunction: false, inClass: false})).to.throw();
   });
 
   it('parses an assignment statement', () => {
@@ -324,7 +325,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, false);
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({tag: "assign", name: "x", value: {tag: "literal", value: {tag: "number", value: 10}}});
   });
 
@@ -334,7 +335,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    expect(() => parseStmt(source, cursor, false)).to.throw();
+    expect(() => parseStmt(source, cursor, {inFunction: false, inClass: false})).to.throw();
   });
 
   it('parses an expression statement', () => {
@@ -343,7 +344,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, false);
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({tag: "expr", expr: {tag: "id", name: "x"}});
   });
 
@@ -353,7 +354,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, false);
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
@@ -370,7 +371,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, false);
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
@@ -392,7 +393,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, false);
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
@@ -418,7 +419,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, false);
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
@@ -439,7 +440,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    expect(() => parseStmt(source, cursor, false)).to.throw();
+    expect(() => parseStmt(source, cursor, {inFunction: false, inClass: false})).to.throw();
 
   })
 
@@ -449,7 +450,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, false);
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({tag: "while", cond: {tag: "literal", value: {tag: "true"}}, body: [{tag: "pass"}]});
   });
 
@@ -459,7 +460,7 @@ describe('parseStmt', () => {
 
     cursor.firstChild();
 
-    const stmt = parseStmt(source, cursor, false);
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({
       tag: "while",
       cond: {tag: "binop", op: "<=", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 5}}},
@@ -478,7 +479,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    const stmt = parseDef(source, cursor, true);
+    const stmt = parseDef(source, cursor, {inFunction: true, inClass: false});
     expect(stmt).to.deep.equal({tag: "variable", def: {name: "x", type: "int", value: {tag: "number", value: 10}}});
   });
 
@@ -488,7 +489,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    const stmt = parseDef(source, cursor, false);
+    const stmt = parseDef(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({tag: "variable", def: {name: "x", type: "bool", value: {tag: "true"}}});
   });
 
@@ -498,7 +499,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    expect(() => parseDef(source, cursor, false)).to.throw();
+    expect(() => parseDef(source, cursor, {inFunction: false, inClass: false})).to.throw();
   });
 
   it('throws error on variable definition with non-literal initializer', () => {
@@ -507,7 +508,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    expect(() => parseDef(source, cursor, false)).to.throw();
+    expect(() => parseDef(source, cursor, {inFunction: false, inClass: false})).to.throw();
   });
 
   it('parses a function definition with return type annotation', () => {
@@ -516,7 +517,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    const stmt = parseDef(source, cursor, false);
+    const stmt = parseDef(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({
       tag: "function",
       def: {
@@ -535,7 +536,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    const stmt = parseDef(source, cursor, false);
+    const stmt = parseDef(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({
       tag: "function",
       def: {
@@ -554,7 +555,7 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    const stmt = parseDef(source, cursor, false);
+    const stmt = parseDef(source, cursor, {inFunction: false, inClass: false});
     expect(stmt).to.deep.equal({
       tag: "function",
       def: {
@@ -576,7 +577,155 @@ describe('parseDef', () => {
 
     cursor.firstChild();
 
-    expect(() => parseDef(source, cursor, false)).to.throw();
+    expect(() => parseDef(source, cursor, {inFunction: false, inClass: false})).to.throw();
+  });
+
+  it('parses a class definition with single field', () => {
+    const source = "class Foo(object):\n\tbar: int = 0"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const def = parseDef(source, cursor, {inFunction: false, inClass: false});
+    expect(def).to.deep.equal({
+      tag: "class",
+      def: {
+        name: "Foo",
+        parent: "object",
+        fields: [{
+          name: "bar",
+          type: "int",
+          value: {tag: "number", value: 0},
+        }],
+        methods: []
+      }
+    });
+  });
+
+  it('parses a class definition with multiple fields', () => {
+    const source = "class Foo(object):\n\tbar: int = 0\n\tbaz: bool = False"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const def = parseDef(source, cursor, {inFunction: false, inClass: false});
+    expect(def).to.deep.equal({
+      tag: "class",
+      def: {
+        name: "Foo",
+        parent: "object",
+        fields: [{
+          name: "bar",
+          type: "int",
+          value: {tag: "number", value: 0},
+        }, {
+          name: "baz",
+          type: "bool",
+          value: {tag: "false"},
+        }],
+        methods: []
+      }
+    });
+  });
+
+  it('parses a class definition with single method', () => {
+    const source = "class Foo(object):\n\tdef bar(self: Foo):\n\t\tpass"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const def = parseDef(source, cursor, {inFunction: false, inClass: false});
+    expect(def).to.deep.equal({
+      tag: "class",
+      def: {
+        name: "Foo",
+        parent: "object",
+        fields: [],
+        methods: [
+          {
+            name: "bar",
+            params: [{name: "self", typ: {tag: "object", name: "Foo"}}],
+            ret: "none",
+            defs: [],
+            body: [
+              {tag: "pass"}
+            ]
+          }
+        ]
+      }
+    });
+  });
+
+  it('parses a class definition with multiple fields and methods', () => {
+    const source = "class Foo(object):\n\tx: int = 0\n\tdef bar(self: Foo):\n\t\tpass\n\ty: bool = False\n\tdef baz(self: Foo):\n\t\tpass"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const def = parseDef(source, cursor, {inFunction: false, inClass: false});
+    expect(def).to.deep.equal({
+      tag: "class",
+      def: {
+        name: "Foo",
+        parent: "object",
+        fields: [{
+          name: "x",
+          type: "int",
+          value: {tag: "number", value: 0},
+        }, {
+          name: "y",
+          type: "bool",
+          value: {tag: "false"},
+        }],
+        methods: [
+          {
+            name: "bar",
+            params: [{name: "self", typ: {tag: "object", name: "Foo"}}],
+            ret: "none",
+            defs: [],
+            body: [
+              {tag: "pass"}
+            ]
+          },
+          {
+            name: "baz",
+            params: [{name: "self", typ: {tag: "object", name: "Foo"}}],
+            ret: "none",
+            defs: [],
+            body: [
+              {tag: "pass"}
+            ]
+          }
+        ]
+      }
+    });
+  });
+
+  it('throws error on class with no parent class', () => {
+    const source = "class Foo():\n\tdef bar(self: Foo):\n\t\tpass"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    expect(() => parseDef(source, cursor, {inFunction: false, inClass: false})).to.throw();
+  });
+
+  it('throws error on class with multiple parent classes', () => {
+    const source = "class Foo(object1, object2):\n\tdef bar(self: Foo):\n\t\tpass"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    expect(() => parseDef(source, cursor, {inFunction: false, inClass: false})).to.throw();
+  });
+
+  it('throws error on class with statement in its definition', () => {
+    const source = "class Foo(object):\n\t1 + 2"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    expect(() => parseDef(source, cursor, {inFunction: false, inClass: false})).to.throw();
   });
 });
 
@@ -722,6 +871,35 @@ describe('parseProgram', () => {
     });
   });
 
+  it('parses a program with variable and class definitions followed by statements - 2', () => {
+    const source = "x: int = 0\nclass Rat(object):\n\tx: bool = False\nx = x + 1"
+    const program = parseProgram(source);
+
+    expect(program).to.deep.equal({
+      defs: [
+        {tag: "variable", def: {name: "x", type: "int", value: {tag: "number", value: 0}}},
+        {
+          tag: "class",
+          def: {
+            name: "Rat",
+            parent: "object",
+            fields: [
+              {name: "x", type: "bool", value: {tag: "false"}}
+            ],
+            methods: [],
+          }
+        }
+      ],
+      stmts: [
+        {
+          tag: "assign",
+          name: "x",
+          value: {tag: "binop", op: "+", lhs: {tag: "id", name: "x"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}
+        }
+      ]
+    });
+  });
+
   it('throws error when variable definition occurs after statements', () => {
     const source = "x: int = 0\nx = x + 1\ny:int = 1"
     expect(() => parseProgram(source)).to.throw();
@@ -729,6 +907,11 @@ describe('parseProgram', () => {
 
   it('throws error when function definition occurs after statements', () => {
     const source = "x: int = 0\nx = x + 1\ndef add1(x: int) -> int:\n\treturn x + 1"
+    expect(() => parseProgram(source)).to.throw();
+  });
+
+  it('throws error when class definition occurs after statements', () => {
+    const source = "x: int = 0\nx = x + 1\nclass Rat(object):\n\tn:int = 0"
     expect(() => parseProgram(source)).to.throw();
   });
 });

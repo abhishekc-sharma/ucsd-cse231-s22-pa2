@@ -1,19 +1,21 @@
 import {TreeCursor} from 'lezer';
 import {parser} from 'lezer-python';
-import {Program, Parameter, Stmt, Expr, Literal, Def, FunDef, VarDef, Type, isBinOp, isUnOp} from './ast';
+import {Program, Parameter, Stmt, Expr, Literal, Def, ClassDef, FunDef, VarDef, Type, isBinOp, isUnOp} from './ast';
+
+export type ParsingEnv = {inFunction: boolean, inClass: boolean};
 
 export function parseProgram(source: string): Program<any> {
   const t = parser.parse(source).cursor();
   // cursor is initially focused on the Script node
   t.firstChild(); // focus on the first statement
 
-  const [defs, stmts] = parseDefsAndStmts(source, t, false);
+  const [defs, stmts] = parseDefsAndStmts(source, t, {inFunction: false, inClass: false});
   return {defs, stmts};
 }
 
-export function parseDefsAndStmts(source: string, t: TreeCursor, inFunction: boolean): [Def<any>[], Stmt<any>[]] {
+export function parseDefsAndStmts(source: string, t: TreeCursor, env: ParsingEnv): [Def<any>[], Stmt<any>[]] {
   // parse the leading definitions.
-  const [defs, foundStmt] = parseDefs(source, t, inFunction);
+  const [defs, foundStmt] = parseDefs(source, t, env);
 
   // if we never found a statement after the
   // definitions then we are done.
@@ -22,11 +24,11 @@ export function parseDefsAndStmts(source: string, t: TreeCursor, inFunction: boo
   }
 
   // parse the statements.
-  const stmts = parseStmts(source, t, inFunction);
+  const stmts = parseStmts(source, t, env);
   return [defs, stmts];
 }
 
-export function parseDefs(source: string, t: TreeCursor, inFunction: boolean): [Def<any>[], boolean] {
+export function parseDefs(source: string, t: TreeCursor, env: ParsingEnv): [Def<any>[], boolean] {
   const defs = [];
   let found = false;
   do {
@@ -35,7 +37,7 @@ export function parseDefs(source: string, t: TreeCursor, inFunction: boolean): [
       found = true;
       break;
     }
-    defs.push(parseDef(source, t, inFunction));
+    defs.push(parseDef(source, t, env));
   } while (t.nextSibling());
   return [defs, found];
 }
@@ -46,12 +48,12 @@ export function parseDefs(source: string, t: TreeCursor, inFunction: boolean): [
 //
 // Pre-condition - t is focused on the first statement in a sequence of statements
 // Post-condition - t is focused on the last statement in the sequence of statements just parsed
-export function parseStmts(source: string, t: TreeCursor, inFunction: boolean): Stmt<any>[] {
+export function parseStmts(source: string, t: TreeCursor, env: ParsingEnv): Stmt<any>[] {
   const stmts = [];
 
   // parse all the statements.
   do {
-    stmts.push(parseStmt(source, t, inFunction));
+    stmts.push(parseStmt(source, t, env));
   } while (t.nextSibling());
 
   return stmts;
@@ -76,6 +78,9 @@ function isDef(t: TreeCursor): boolean {
       let ret = t.type.name === "TypeDef";
       t.parent(); // pop to AssignStatement
       return ret;
+    case "ClassDefinition":
+      // class definition is always a definition
+      return true;
     default:
       // no other types of definitions supported currently
       return false;
@@ -87,16 +92,19 @@ function isDef(t: TreeCursor): boolean {
 //
 // Pre-condition - t is focused on a statement node
 // Post-condition - t is focused on the same statement node
-export function parseDef(s: string, t: TreeCursor, inFunction: boolean): Def<any> {
+export function parseDef(s: string, t: TreeCursor, env: ParsingEnv): Def<any> {
   switch (t.type.name) {
     case "AssignStatement":
       const varDef = parseVarDef(s, t);
       return {tag: "variable", def: varDef};
     case "FunctionDefinition":
-      const funDef = parseFunDef(s, t, inFunction);
+      const funDef = parseFunDef(s, t, env);
       return {tag: "function", def: funDef};
+    case "ClassDefinition":
+      const classDef = parseClassDef(s, t, env);
+      return {tag: "class", def: classDef};
     default:
-      throw new Error(`ParseError: expecting a variable/function definition: ${s.substring(t.from, t.to)}`);
+      throw new Error(`ParseError: expecting a variable/function/class definition: ${s.substring(t.from, t.to)}`);
   }
 }
 
@@ -135,10 +143,10 @@ function parseVarDef(s: string, t: TreeCursor): VarDef<any> {
   }
 }
 
-function parseFunDef(s: string, t: TreeCursor, inFunction: boolean): FunDef<any> {
+function parseFunDef(s: string, t: TreeCursor, env: ParsingEnv): FunDef<any> {
   if (t.type.name === "FunctionDefinition") {
     // nested fucntion definitions are not allowed
-    if (inFunction) {
+    if (env.inFunction) {
       throw new Error("ParseError: Nested function definition not supported: " + s.substring(t.from, t.to));
     }
     t.firstChild();  // Focus on def
@@ -157,7 +165,7 @@ function parseFunDef(s: string, t: TreeCursor, inFunction: boolean): FunDef<any>
     t.nextSibling(); // Focus on single statement (for now)
     t.firstChild();  // Focus on :
     t.nextSibling();
-    const [defs, body] = parseDefsAndStmts(s, t, true);
+    const [defs, body] = parseDefsAndStmts(s, t, {...env, inFunction: true});
     t.parent();      // Pop to Body
     t.parent();      // Pop to FunctionDefinition
     return {
@@ -168,18 +176,63 @@ function parseFunDef(s: string, t: TreeCursor, inFunction: boolean): FunDef<any>
   }
 }
 
+function parseClassDef(s: string, t: TreeCursor, env: ParsingEnv): ClassDef<any> {
+  if (t.type.name !== "ClassDefinition") {
+    throw new Error(`ParseError: expecting class definition: ${s.substring(t.from, t.to)}`);
+  }
+
+  t.firstChild(); // focus on "class"
+
+  t.nextSibling(); // focus on VariableName
+  const name = s.substring(t.from, t.to);
+
+  t.nextSibling(); // focus on ArgList
+  t.firstChild(); // focus on "("
+  t.nextSibling(); // focus on VariableName
+  if (s.substring(t.from, t.to) === ")") {
+    t.parent();
+    throw new Error(`ParseError: class definition must have exactly one parent class: ${s.substring(t.from, t.to)}`);
+  }
+  const parent = s.substring(t.from, t.to);
+
+  t.nextSibling(); // focus on ")
+  if (s.substring(t.from, t.to) !== ")") {
+    t.parent();
+    throw new Error(`ParseError: class definition must have exactly one parent class: ${s.substring(t.from, t.to)}`);
+  }
+
+  t.parent(); // pop to ArgList
+  t.nextSibling(); // focus on Body
+  t.firstChild(); // focus on ":"
+  t.nextSibling(); // focus on first statement
+
+  const [defs, foundStmt] = parseDefs(s, t, {...env, inClass: true});
+  if (foundStmt) {
+    throw new Error(`ParseError: unexpected statement inside class definition: ${s.substring(t.from, t.to)}`);
+  }
+
+  const fields = defs.filter(d => d.tag === "variable").map(d => d.def);
+  const methods = defs.filter(d => d.tag === "function").map(d => d.def);
+
+  t.parent(); // pop to Body
+  t.parent(); // pop to ClassDefinition
+
+  // @ts-ignore
+  return {name, parent, fields, methods};
+}
+
 // Parse a non-definitional statement
 // inFunction - are we currently within a function definition.
 //
 // Pre-condition - t is focused on a statement node
 // Post-condition - t is focused on the same statement node
-export function parseStmt(s: string, t: TreeCursor, inFunction: boolean): Stmt<any> {
+export function parseStmt(s: string, t: TreeCursor, env: ParsingEnv): Stmt<any> {
   switch (t.type.name) {
     case "PassStatement":
       return {tag: "pass"};
     case "ReturnStatement":
       // check if we are in a function for return statement to be allowed
-      if (!inFunction) {
+      if (!env.inFunction) {
         throw new Error("ParseError: Return statement not allowed outside function body: " + s.substring(t.from, t.to));
       }
 
@@ -224,7 +277,7 @@ export function parseStmt(s: string, t: TreeCursor, inFunction: boolean): Stmt<a
       t.nextSibling(); // focus on first statement in body
 
       // parse statements in body, not allowing definitions
-      let body = parseStmts(s, t, inFunction);
+      let body = parseStmts(s, t, env);
 
       t.parent();      // Pop to Body
       t.parent();      // Pop to WhileStatement
@@ -232,7 +285,7 @@ export function parseStmt(s: string, t: TreeCursor, inFunction: boolean): Stmt<a
     case "IfStatement":
       t.firstChild(); // focus on if
       // parse the condition and body of the if branch
-      let {cond: ifCond, body: ifBody} = parseCondAndBody(s, t, inFunction, "if");
+      let {cond: ifCond, body: ifBody} = parseCondAndBody(s, t, env, "if");
 
       if (!t.nextSibling()) {
         // no elif or else, just return what we have so far
@@ -243,7 +296,7 @@ export function parseStmt(s: string, t: TreeCursor, inFunction: boolean): Stmt<a
       let ret: Stmt<any> = {tag: "ifelse", ifcond: ifCond, ifbody: ifBody};
 
       // try to parse an elif branch
-      let elif = parseCondAndBody(s, t, inFunction, "elif");
+      let elif = parseCondAndBody(s, t, env, "elif");
       if (elif) {
         // we found an elif branch
         // add the cond and body to ret
@@ -268,7 +321,7 @@ export function parseStmt(s: string, t: TreeCursor, inFunction: boolean): Stmt<a
       t.nextSibling(); // focus on first statement in body
       // parse the statements in the body of else branch without
       // allowing definitions
-      let elseBody = parseStmts(s, t, inFunction);
+      let elseBody = parseStmts(s, t, env);
       t.parent(); // Pop to Body
       t.parent(); // Pop to IfStatement
       ret.elsebody = elseBody;
@@ -290,7 +343,7 @@ type ElifElseWhat = "if" | "elif"
 //
 // Pre-condition - t is focused on the "if" or "elif" part of an IfStatement
 // Post-condition - t is focused on the Body node corresponding to the branch of the IfStatement
-function parseCondAndBody(s: string, t: TreeCursor, inFunction: boolean, what: ElifElseWhat): ElifElse<any> {
+function parseCondAndBody(s: string, t: TreeCursor, env: ParsingEnv, what: ElifElseWhat): ElifElse<any> {
   // check that we have the expected branch
   if (s.substring(t.from, t.to) != what) {
     return undefined;
@@ -303,7 +356,7 @@ function parseCondAndBody(s: string, t: TreeCursor, inFunction: boolean, what: E
   t.firstChild(); // focus on ;
   t.nextSibling(); // focus on first statement in body
   // parse the branch body without allowing definitions 
-  let body = parseStmts(s, t, inFunction);
+  let body = parseStmts(s, t, env);
 
   t.parent(); // pop to body
   return {cond, body};
@@ -314,7 +367,7 @@ export function parseType(s: string, t: TreeCursor): Type {
     case "VariableName":
       const name = s.substring(t.from, t.to);
       if (name !== "int" && name !== "bool") {
-        throw new Error("ParseError: Unknown type: " + name)
+        return {tag: "object", name};
       }
       return name;
     default:
@@ -404,7 +457,7 @@ export function parseExpr(s: string, t: TreeCursor): Expr<any> {
       t.nextSibling();
       if (s.substring(t.from, t.to) !== ")") {
         t.parent();
-        throw new Error(`ParseError: Missing/Mismatched closing paranthesis: ` + s.substring(t.from, t.to));
+        throw new Error(`ParseError: Missing/Mismatched closing parenthesis: ` + s.substring(t.from, t.to));
       }
       t.parent();
       return pexpr;

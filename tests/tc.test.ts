@@ -844,7 +844,7 @@ describe('tcStmt', () => {
         {tag: "assign", name: "n", value: {tag: "literal", value: {tag: "number", value: 5}}},
         {tag: "expr", expr: {tag: "literal", value: {tag: "true"}}},
       ]
-    }, env)
+    }, env);
 
     expect(ast).to.deep.equal({
       tag: "while",
@@ -855,6 +855,24 @@ describe('tcStmt', () => {
       ],
       a: "none",
     });
+  });
+
+  it('throws an error when a while loop condition is not boolean', () => {
+    let env: TypingEnv = {
+      ret: "none", vars: new Map<string, EnvType>(Object.entries({
+        "n": {tag: "variable", type: "int", global: true},
+        "x": {tag: "variable", type: "bool", global: true}
+      })), inFunc: false
+    };
+
+    expect(() => tcStmt({
+      tag: "while",
+      cond: {tag: "id", name: "n"},
+      body: [
+        {tag: "assign", name: "n", value: {tag: "literal", value: {tag: "number", value: 5}}},
+        {tag: "expr", expr: {tag: "literal", value: {tag: "true"}}},
+      ]
+    }, env)).to.throw();
   });
 
   it('typechecks if elif else ladder', () => {
@@ -930,6 +948,60 @@ describe('tcStmt', () => {
       a: "none"
     });
   });
+
+  it('throws an error when if condition is not boolean', () => {
+    let env: TypingEnv = {
+      ret: "none", vars: new Map<string, EnvType>(Object.entries({
+        "n": {tag: "variable", type: "int", global: true},
+        "sum": {tag: "variable", type: "int", global: true}
+      })), inFunc: false
+    };
+
+    expect(() => tcStmt({
+      tag: "ifelse",
+      ifcond: {tag: "id", name: "n"},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+      ],
+      elifcond: {tag: "literal", value: {tag: "false"}},
+      elifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+      ],
+      elsebody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+      ],
+    }, env)).to.throw();
+  });
+
+  it('throws an error when elif condition is not boolean', () => {
+    let env: TypingEnv = {
+      ret: "none", vars: new Map<string, EnvType>(Object.entries({
+        "n": {tag: "variable", type: "int", global: true},
+        "sum": {tag: "variable", type: "int", global: true}
+      })), inFunc: false
+    };
+
+    expect(() => tcStmt({
+      tag: "ifelse",
+      ifcond: {tag: "literal", value: {tag: "false"}},
+      ifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+      ],
+      elifcond: {tag: "id", name: "n"},
+      elifbody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+      ],
+      elsebody: [
+        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+      ],
+    }, env)).to.throw();
+  })
 
   it('typechecks program - 0', () => {
     const ast = tcProgram({
