@@ -1,4 +1,4 @@
-import {Program, Parameter, Stmt, Expr, Literal, Def, FunDef, VarDef, Type, BinOp, UnOp} from './ast';
+import {Program, Parameter, Stmt, Expr, Literal, Def, ClassDef, FunDef, VarDef, Type, BinOp, UnOp} from './ast';
 
 // information stored for a variable/function in the Variable Typing Environment
 export type EnvType =
@@ -18,24 +18,63 @@ export type EnvType =
     type: [Type[], Type]
   }
 
+export type ClassType = {fields: Map<string, Type>, methods: Map<string, [Type[], Type]>}
+
 // Variable Typing Environment
 // Maps variable and function names to their types
 type VariableEnv = Map<string, EnvType>;
+
+type ClassEnv = Map<string, ClassType>;
 
 // Typing Environment
 // ret - return type of function we are currently in
 // vars - the current variable typing environment
 // inFunc - are we currently in a function definition
 export type TypingEnv =
-  | {ret: Type, vars: VariableEnv, inFunc: boolean}
+  | {ret: Type, classNames: Set<string>, vars: VariableEnv, classes: ClassEnv, inFunc: boolean}
 
 // create an empty typing environment
 function emptyEnv(): TypingEnv {
   let vars = new Map<string, EnvType>();
+  let classes = new Map<string, ClassType>();
+  classes.set("object", {fields: new Map(), methods: new Map()});
+
   return {
     ret: "none",
-    vars: vars,
+    classNames: new Set(["object"]),
+    vars,
+    classes,
     inFunc: false,
+  }
+}
+
+function isValidType(type: Type, env: TypingEnv): boolean {
+  return type === "int" || type === "bool" || type === "none" || (type.tag === "object" && env.classNames.has(type.name));
+}
+
+function isValidParentType(type: string, parent: string, env: TypingEnv): boolean {
+  if (type === parent) {
+    return false;
+  }
+
+  return env.classNames.has(parent);
+}
+
+function isClassType(type: Type, name: string): boolean {
+  if (type === "int" || type === "bool" || type === "none") {
+    return false;
+  }
+
+  return type.name === name;
+}
+
+function isSubtypeOf(subtype: Type, supertype: Type): boolean {
+  // int and bool are only sub/super type of themselves
+  if (supertype === "int" || supertype === "bool" || supertype === "none") {
+    return subtype === supertype;
+  } else {
+    return subtype === "none" ||
+      (subtype !== "int" && subtype != "bool" && subtype.tag && subtype.tag === "object" && subtype.name === supertype.name);
   }
 }
 
@@ -91,7 +130,6 @@ const binOpTypes: BinOpTypes = {
   "or": [{lhs: "bool", rhs: "bool", res: "bool"}],
   "is": [{lhs: "none", rhs: "none", res: "bool"}],
 }
-
 
 export function tcLiteral(l: Literal<any>, _env: TypingEnv): Literal<Type> {
   switch (l.tag) {
@@ -280,7 +318,7 @@ export function tcStmt(s: Stmt<any>, env: TypingEnv): Stmt<Type> {
       const rhs = tcExpr(s.value, env);
 
       // check that it matches the expected type
-      if (envType.type !== rhs.a) {
+      if (!isSubtypeOf(rhs.a, envType.type)) {
         throw new Error(`TypeError: Cannot assign value of type ${rhs.a} to variable ${s.name} with type ${envType.type}`);
       }
       return {...s, a: "none", value: rhs};
@@ -334,6 +372,22 @@ export function tcStmt(s: Stmt<any>, env: TypingEnv): Stmt<Type> {
 }
 
 export function tcVarDef(d: VarDef<any>, env: TypingEnv): VarDef<Type> {
+  // if variable is annotated with a non-existent type/class name
+  if (!isValidType(d.type, env)) {
+    throw new Error(`TypeError: Invalid type annotation, there is no class named: ${d.type}`);
+  }
+
+  // if we are in global scope and there is already a class with the
+  // same name
+  if (!env.inFunc && env.classNames.has(d.name)) {
+    throw new Error(`TypeError: Duplicate definition of identifier in same scope: ${d.name}`);
+  }
+
+  // if we are in local scope, prevent shadowing of a class name
+  if (env.inFunc && env.classNames.has(d.name)) {
+    throw new Error(`TypeError: Cannot shadow class name: ${d.name}`);
+  }
+
   let envType = env.vars.get(d.name);
 
   // if we are currently in global scope and there is already
@@ -357,8 +411,9 @@ export function tcVarDef(d: VarDef<any>, env: TypingEnv): VarDef<Type> {
   // type check the value being assigned
   const value = tcLiteral(d.value, env);
 
+  // TODO: Account for subtyping
   // check that the value we are assigning has the correct type
-  if (value.a !== d.type) {
+  if (!isSubtypeOf(value.a, d.type)) {
     throw new Error(`TypeError: Got ${value.a} assigning to ${d.name}, expected ${d.type}`);
   }
 
@@ -368,32 +423,27 @@ export function tcVarDef(d: VarDef<any>, env: TypingEnv): VarDef<Type> {
 }
 
 export function tcFunDef(d: FunDef<any>, env: TypingEnv): FunDef<Type> {
-  // check if environment already has variable with same name
-  if (env.vars.has(d.name)) {
-    throw new Error(`TypeError: Duplicate definition of identifier in same scope: ${d.name}`);
-  }
-
-  // adding the function to the environment before proceeding
-  // so that the function is available in the environment when
-  // type checking the body so that recursive calls typecheck
-  env.vars.set(d.name, {
-    tag: "function", type: [
-      d.params.map(p => p.typ),
-      d.ret,
-    ]
-  });
-
   // variable environment for body should contains all the existing
   // variables
   const bodyvars = new Map<string, EnvType>(env.vars.entries());
 
+  // check if return type is non-existent type/class name
+  if (!isValidType(d.ret, env)) {
+    throw new Error(`TypeError: Invalid type annotation, there is no class named: ${d.ret}`);
+  }
+
+  // check if any parameter is annoted with non-existent type/class name
+  let invalidParam = d.params.find(p => !isValidType(p.typ, env));
+  if (invalidParam) {
+    throw new Error(`TypeError: Invalid type annotation, there is no class named: ${invalidParam.typ}`);
+  }
   // check if the parameters have any duplicate names
   checkDuplicateParams(d.params);
   // add parameters to variable environment for the body
   d.params.forEach(p => {bodyvars.set(p.name, {tag: "variable", type: p.typ, global: false})});
 
   // typing environment updates ret and inFunc in addition to variable environment
-  let newEnv = {ret: d.ret, vars: bodyvars, inFunc: true};
+  let newEnv = {...env, ret: d.ret, vars: bodyvars, inFunc: true};
 
   // type check and add variable definitions to environment
   const newDefs: Def<Type>[] = [];
@@ -416,6 +466,64 @@ export function tcFunDef(d: FunDef<any>, env: TypingEnv): FunDef<Type> {
   return {...d, a: "none", defs: newDefs, body: newBody};
 }
 
+function tcFieldDef(f: VarDef<any>, env: TypingEnv): VarDef<Type> {
+  if (!isValidType(f.type, env)) {
+    throw new Error(`TypeError: Invalid type annotation, there is no class named: ${f.type}`);
+  }
+
+
+  // type check the value being assigned
+  const newValue = tcLiteral(f.value, env);
+
+  // TODO: Account for subtyping
+  // check that the value we are assigning has the correct type
+  if (!isSubtypeOf(newValue.a, f.type)) {
+    throw new Error(`TypeError: Got ${newValue.a} assigning to ${f.name}, expected ${f.type}`);
+  }
+
+  return {...f, value: newValue, a: "none"}
+
+}
+
+function buildClassEnv(d: ClassDef<any>, env: TypingEnv) {
+  const classType = {fields: new Map(), methods: new Map()};
+  env.classes.set(d.name, classType);
+
+  d.fields.forEach(f => {
+    if (classType.fields.has(f.name) || classType.methods.has(f.name)) {
+      throw new Error(`TypeError: Duplicate definition of identifier in same scope: ${f.name}`);
+    }
+
+    classType.fields.set(f.name, f.type);
+  });
+
+  d.methods.forEach(m => {
+    if (m.params.length < 1 || !isClassType(m.params[0].typ, d.name)) {
+      throw new Error(`TypeError: First parameter of the method must be of the enclosing class: ${m.name}`);
+    }
+
+    if (classType.fields.has(m.name) || classType.methods.has(m.name)) {
+      throw new Error(`TypeError: Duplicate definition of identifier in same scope: ${m.name}`);
+    }
+
+    const params = m.params.map(p => p.typ);
+    params.shift();
+
+    classType.methods.set(m.name, [params, m.ret]);
+  });
+}
+
+export function tcClassDef(d: ClassDef<any>, env: TypingEnv): ClassDef<Type> {
+  if (!isValidParentType(d.name, d.parent, env)) {
+    throw new Error(`TypeError: Super-class for class ${d.name} is not defined: ${d.parent}`)
+  }
+
+  const newFields: VarDef<Type>[] = d.fields.map(f => tcFieldDef(f, env));
+  const newMethods: FunDef<Type>[] = d.methods.map(m => tcFunDef(m, env));
+
+  return {...d, a: "none", fields: newFields, methods: newMethods};
+}
+
 // type checks the entire program
 //
 // Invariant - fills in the type annotation for all contained expressions
@@ -425,10 +533,55 @@ export function tcProgram(p: Program<any>): Program<Type> {
 
   const newDefs: Def<any>[] = [];
 
+  // pre-process and store all class names in environment
+  // so that we can check classes used in type annotations
+  // before they are defined.
+  p.defs.forEach(d => {
+    if (d.tag === "class") {
+      env.classNames.add(d.def.name);
+    }
+  });
+
+  // type-check all the global variable definitions
+  // and add them to the environment.
   p.defs.forEach(d => {
     if (d.tag === "variable") {
       const newVarDef = tcVarDef(d.def, env);
       newDefs.push({...d, a: "none", def: newVarDef});
+    }
+  });
+
+  // add all function definitions to the environment
+  // ahead of time to be able to resolve functions
+  // that are used before they are defined.
+  // NOTE: function bodies are not yet type-checked
+  p.defs.forEach(d => {
+    if (d.tag === "function") {
+      // check if environment already has variable with same name
+      if (env.vars.has(d.def.name) || env.classNames.has(d.def.name)) {
+        throw new Error(`TypeError: Duplicate definition of identifier in same scope: ${d.def.name}`);
+      }
+
+      env.vars.set(d.def.name, {
+        tag: "function", type: [
+          d.def.params.map(p => p.typ),
+          d.def.ret,
+        ]
+      });
+    }
+  });
+
+  // type-check all class definitions and update the environment
+  p.defs.forEach(d => {
+    if (d.tag === "class") {
+      buildClassEnv(d.def, env);
+    }
+  });
+
+  p.defs.forEach(d => {
+    if (d.tag === "class") {
+      const newClassDef = tcClassDef(d.def, env);
+      newDefs.push({...d, a: "none", def: newClassDef});
     }
   });
 
