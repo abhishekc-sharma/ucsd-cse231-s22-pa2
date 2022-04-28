@@ -17,9 +17,7 @@ export type Literal<A> =
   | {a?: A, tag: "true"}
 
 export type VarDef<A> = {a?: A, name: string, type: Type, value: Literal<A>}
-
 export type FunDef<A> = {a?: A, name: string, params: Parameter[], ret: Type, defs: Def<A>[], body: Stmt<A>[]}
-
 export type ClassDef<A> = {a?: A, name: string, parent: string, fields: VarDef<A>[], methods: FunDef<A>[]}
 
 export type Def<A> =

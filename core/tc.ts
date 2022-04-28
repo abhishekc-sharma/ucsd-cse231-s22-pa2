@@ -210,9 +210,20 @@ export function tcExpr(e: Expr<any>, env: TypingEnv): Expr<Type> {
         return res;
       }
 
+      if (env.classNames.has(e.name)) {
+        // this is a object construction call
+
+        // constructors never take any arguments
+        if (e.args.length !== 0) {
+          throw new Error(`TypeError: expected 0 arguments, got ${e.args.length}`);
+        }
+
+        return {...e, a: {tag: "object", name: e.name}};
+      }
+
       // variable environment should have the function
       if (!env.vars.has(e.name)) {
-        throw new Error(`TypeError: not a function: ${e.name}`);
+        throw new Error(`TypeError: not a function or class: ${e.name}`);
       }
 
       // retrieve type information for the function
@@ -587,6 +598,10 @@ export function tcProgram(p: Program<any>): Program<Type> {
 
   p.defs.forEach(d => {
     if (d.tag === "function") {
+      if (d.def.name === "__init__" && (d.def.params.length !== 0 || d.def.ret !== "none")) {
+        throw new Error(`TypeError: method overriden with different type signature: ${d.def.name}`);
+      }
+
       const newFunDef = tcFunDef(d.def, env);
       newDefs.push({...d, a: "none", def: newFunDef});
     }

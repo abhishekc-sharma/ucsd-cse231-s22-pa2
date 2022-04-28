@@ -2,21 +2,22 @@ import {compile, run} from '../core/compiler';
 
 
 document.addEventListener("DOMContentLoaded", async () => {
-  function display(arg : string) {
+  function display(arg: string) {
     const elt = document.createElement("pre");
     document.getElementById("output").appendChild(elt);
     elt.innerText = arg;
   }
+  var heap = new WebAssembly.Memory({initial: 100, maximum: 1000});
   var importObject = {
     imports: {
-      print_num: (arg : any) => {
+      print_num: (arg: any) => {
         console.log("Logging from WASM: ", arg);
         display(String(arg));
         return 0;
       },
-      print_bool: (arg : any) => {
-        if(arg === 0) { display("False"); }
-        else { display("True"); }
+      print_bool: (arg: any) => {
+        if (arg === 0) {display("False");}
+        else {display("True");}
         return 0;
       },
       print_none: (_arg: any) => {
@@ -24,6 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return 0;
       }
     },
+    memory: {heap: heap},
   };
   const runButton = document.getElementById("run");
   const userCode = document.getElementById("user-code") as HTMLTextAreaElement;
@@ -38,7 +40,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       output.textContent += String(result);
       output.setAttribute("style", "color: black");
     }
-    catch(e) {
+    catch (e) {
       console.error(e)
       output.textContent = String(e);
       output.setAttribute("style", "color: red");
@@ -46,7 +48,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   userCode.value = localStorage.getItem("program");
-  userCode.addEventListener("keypress", async() => {
+  userCode.addEventListener("keypress", async () => {
     localStorage.setItem("program", userCode.value);
   });
 });
