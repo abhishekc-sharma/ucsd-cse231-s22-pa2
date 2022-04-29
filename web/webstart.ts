@@ -23,6 +23,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       print_none: (_arg: any) => {
         display("None");
         return 0;
+      },
+      runtime_error: () => {
+        throw new Error(`RUNTIME ERROR`);
       }
     },
     memory: {heap: heap},

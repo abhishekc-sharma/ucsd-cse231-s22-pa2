@@ -25,9 +25,13 @@ export type Def<A> =
   | {a?: A, tag: "function", def: FunDef<A>}
   | {a?: A, tag: "class", def: ClassDef<A>}
 
+export type LValue<A> =
+  | {a?: A, tag: "variable", name: string}
+  | {a?: A, tag: "member", expr: Expr<A>, name: string}
+
 export type Stmt<A> =
   | {a?: A, tag: "pass"}
-  | {a?: A, tag: "assign", name: string, value: Expr<A>}
+  | {a?: A, tag: "assign", lhs: LValue<A>, value: Expr<A>}
   | {a?: A, tag: "expr", expr: Expr<A>}
   | {a?: A, tag: "return", value: Expr<A>}
   | {a?: A, tag: "while", cond: Expr<A>, body: Stmt<A>[]}
@@ -38,7 +42,9 @@ export type Expr<A> =
   | {a?: A, tag: "unop", op: UnOp, expr: Expr<A>}
   | {a?: A, tag: "binop", op: BinOp, lhs: Expr<A>, rhs: Expr<A>}
   | {a?: A, tag: "id", name: string}
+  | {a?: A, tag: "field", obj: Expr<A>, name: string}
   | {a?: A, tag: "call", name: string, args: Expr<A>[]}
+  | {a?: A, tag: "method", obj: Expr<A>, name: string, args: Expr<A>[]}
 
 const unOps = {
   "-": true,

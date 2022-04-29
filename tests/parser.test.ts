@@ -277,6 +277,50 @@ describe('parseExpr', () => {
 
     expect(() => parseExpr(source, cursor)).to.throw();
   });
+
+  it('parses a member field access expression', () => {
+    const source = "point.x";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+    cursor.firstChild();
+
+    const expr = parseExpr(source, cursor);
+    expect(expr).to.deep.equal({tag: "field", obj: {tag: "id", name: "point"}, name: "x"})
+  });
+
+  it('parses a nested member field access expression', () => {
+    const source = "point.y.x";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+    cursor.firstChild();
+
+    const expr = parseExpr(source, cursor);
+    expect(expr).to.deep.equal({tag: "field", obj: {tag: "field", obj: {tag: "id", name: "point"}, name: "y"}, name: "x"});
+  });
+
+  it('parses a method call expression', () => {
+    const source = "p1.distance(p2)";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+    cursor.firstChild();
+
+    const expr = parseExpr(source, cursor);
+    expect(expr).to.deep.equal({tag: "method", obj: {tag: "id", name: "p1"}, name: "distance", args: [{tag: "id", name: "p2"}]});
+  });
+
+  it('parses a nested method call expression', () => {
+    const source = "p1.x.distance(p2)";
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+    cursor.firstChild();
+
+    const expr = parseExpr(source, cursor);
+    expect(expr).to.deep.equal({tag: "method", obj: {tag: "field", obj: {tag: "id", name: "p1"}, name: "x"}, name: "distance", args: [{tag: "id", name: "p2"}]});
+  });
 });
 
 describe('parseStmt', () => {
@@ -326,7 +370,7 @@ describe('parseStmt', () => {
     cursor.firstChild();
 
     const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
-    expect(stmt).to.deep.equal({tag: "assign", name: "x", value: {tag: "literal", value: {tag: "number", value: 10}}});
+    expect(stmt).to.deep.equal({tag: "assign", lhs: {tag: "variable", name: "x"}, value: {tag: "literal", value: {tag: "number", value: 10}}});
   });
 
   it('throws error on assignment statement with type annotation', () => {
@@ -336,6 +380,36 @@ describe('parseStmt', () => {
     cursor.firstChild();
 
     expect(() => parseStmt(source, cursor, {inFunction: false, inClass: false})).to.throw();
+  });
+
+  it('parses an assignment to a field', () => {
+    const source = "p.x = 10"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
+    expect(stmt).to.deep.equal({tag: "assign", lhs: {tag: "member", expr: {tag: "id", name: "p"}, name: "x"}, value: {tag: "literal", value: {tag: "number", value: 10}}})
+  });
+
+  it('parses a nested assignment to a field', () => {
+    const source = "p.y.x = 10"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
+    expect(stmt).to.deep.equal({tag: "assign", lhs: {tag: "member", expr: {tag: "field", obj: {tag: "id", name: "p"}, name: "y"}, name: "x"}, value: {tag: "literal", value: {tag: "number", value: 10}}})
+  });
+
+  it('parses assignment to a field of a return to a call', () => {
+    const source = "Point().x = 10"
+    const cursor = parser.parse(source).cursor();
+
+    cursor.firstChild();
+
+    const stmt = parseStmt(source, cursor, {inFunction: false, inClass: false});
+    expect(stmt).to.deep.equal({tag: "assign", lhs: {tag: "member", expr: {tag: "call", name: "Point", args: []}, name: "x"}, value: {tag: "literal", value: {tag: "number", value: 10}}});
   });
 
   it('parses an expression statement', () => {
@@ -359,8 +433,8 @@ describe('parseStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -376,13 +450,13 @@ describe('parseStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elifcond: {tag: "literal", value: {tag: "false"}},
       elifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -398,17 +472,17 @@ describe('parseStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elifcond: {tag: "literal", value: {tag: "false"}},
       elifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elsebody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -424,12 +498,12 @@ describe('parseStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elsebody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -465,8 +539,8 @@ describe('parseStmt', () => {
       tag: "while",
       cond: {tag: "binop", op: "<=", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 5}}},
       body: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     });
   });
@@ -564,7 +638,7 @@ describe('parseDef', () => {
         ret: "none",
         defs: [],
         body: [
-          {tag: "assign", name: "x", value: {tag: "id", name: "y"}},
+          {tag: "assign", lhs: {tag: "variable", name: "x"}, value: {tag: "id", name: "y"}},
           {tag: "return", value: {tag: "id", name: "x"}}
         ]
       }
@@ -787,7 +861,7 @@ describe('parseProgram', () => {
         },
         {
           tag: "assign",
-          name: "x",
+          lhs: {tag: "variable", name: "x"},
           value: {tag: "literal", value: {tag: "number", value: 5}},
         }
       ]
@@ -806,7 +880,7 @@ describe('parseProgram', () => {
       stmts: [
         {
           tag: "assign",
-          name: "x",
+          lhs: {tag: "variable", name: "x"},
           value: {tag: "binop", op: "+", "lhs": {tag: "id", name: "x"}, "rhs": {tag: "literal", value: {tag: "number", value: 1}}},
         }
       ]
@@ -835,7 +909,7 @@ describe('parseProgram', () => {
       stmts: [
         {
           tag: "assign",
-          name: "x",
+          lhs: {tag: "variable", name: "x"},
           value: {tag: "call", name: "add1", args: [{tag: "id", name: "x"}]}
         }
       ]
@@ -864,7 +938,7 @@ describe('parseProgram', () => {
       stmts: [
         {
           tag: "assign",
-          name: "x",
+          lhs: {tag: "variable", name: "x"},
           value: {tag: "call", name: "add1", args: [{tag: "id", name: "x"}]}
         }
       ]
@@ -893,7 +967,7 @@ describe('parseProgram', () => {
       stmts: [
         {
           tag: "assign",
-          name: "x",
+          lhs: {tag: "variable", name: "x"},
           value: {tag: "binop", op: "+", lhs: {tag: "id", name: "x"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}
         }
       ]

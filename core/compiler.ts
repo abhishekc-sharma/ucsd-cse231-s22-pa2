@@ -1,5 +1,5 @@
 import wabt from 'wabt';
-import {Program, Def, ClassDef, VarDef, FunDef, Stmt, Expr, Literal, Type, UnOp, BinOp} from './ast';
+import {Program, Def, ClassDef, LValue, VarDef, FunDef, Stmt, Expr, Literal, Type, UnOp, BinOp} from './ast';
 import {parseProgram} from './parser';
 import {tcProgram} from './tc';
 
@@ -43,6 +43,7 @@ export async function run(watSource: string, config: any): Promise<number> {
   return (wasmModule.instance.exports as any)._start();
 }
 
+
 export function unOpStmts(op: UnOp) {
   switch (op) {
     case "-": return [`(i32.const -1)`, `i32.mul`];
@@ -73,6 +74,21 @@ export function binOpStmts(op: BinOp) {
   }
 }
 
+export function codeGenNullCheck(): string[] {
+  return [
+    `(local.set $scratch)`,
+    `(local.get $scratch)`,
+    `(i32.const 0)`,
+    `(i32.eq)`,
+    `(if
+      (then
+       call $runtime_error
+      )
+     )`,
+    `(local.get $scratch)`,
+  ];
+}
+
 export function codeGenLiteral(literal: Literal<Type>, _locals: Env): Array<string> {
   switch (literal.tag) {
     case "none": return [`(i32.const 0)`];
@@ -91,6 +107,18 @@ export function codeGenExpr(expr: Expr<Type>, env: Env): Array<string> {
       // just check if it's a local variable and assume it is global if not
       if (env.locals.has(expr.name)) {return [`(local.get $${expr.name})`];}
       else {return [`(global.get $${expr.name})`];}
+    case "field":
+      const objsStmts = codeGenExpr(expr.obj, env);
+      // @ts-ignore
+      let classEnv = env.classes.get(expr.obj.a.name);
+      let offset = classEnv.fieldOffsets.get(expr.name);
+
+      return [
+        ...objsStmts,
+        ...codeGenNullCheck(),
+        `(i32.add (i32.const ${offset}))`,
+        `i32.load`,
+      ];
     case "unop": {
       const exprs = codeGenExpr(expr.expr, env);
       const opstmts = unOpStmts(expr.op);
@@ -119,6 +147,17 @@ export function codeGenExpr(expr: Expr<Type>, env: Env): Array<string> {
       }
       valStmts.push(`(call $${toCall})`);
       return valStmts;
+    case "method":
+      let objStmts = codeGenExpr(expr.obj, env);
+      let argStmts = expr.args.map(e => codeGenExpr(e, env)).flat();
+      // @ts-ignore
+      let methodName = buildMethodName(expr.obj.a.name, expr.name);
+      return [
+        ...objStmts,
+        ...codeGenNullCheck(),
+        ...argStmts,
+        `(call $${methodName})`
+      ];
   }
 }
 
@@ -211,15 +250,36 @@ export function codeGenClassDef(c: ClassDef<Type>, env: Env): string {
   return methods.map(m => m.join("\n")).join("\n\n");
 }
 
+export function codeGenLValue(lvalue: LValue<Type>, valueStmts: Array<string>, env: Env): Array<string> {
+  switch (lvalue.tag) {
+    case "variable":
+      if (env.locals.has(lvalue.name)) {return [...valueStmts, `(local.set $${lvalue.name})`];}
+      else {return [...valueStmts, `(global.set $${lvalue.name})`];}
+    case "member":
+      let addressStmts = codeGenExpr(lvalue.expr, env);
+      //
+      // @ts-ignore
+      let classEnv = env.classes.get(lvalue.expr.a.name);
+      let offset = classEnv.fieldOffsets.get(lvalue.name);
+      return [
+        ...addressStmts,
+        ...codeGenNullCheck(),
+        `(i32.add (i32.const ${offset}))`,
+        ...valueStmts,
+        `i32.store`
+      ];
+  }
+}
+
 export function codeGenStmt(stmt: Stmt<Type>, env: Env): Array<string> {
   switch (stmt.tag) {
     case "pass":
       return [];
     case "assign":
-      var valStmts = codeGenExpr(stmt.value, env);
-      if (env.locals.has(stmt.name)) {valStmts.push(`(local.set $${stmt.name})`);}
-      else {valStmts.push(`(global.set $${stmt.name})`);}
-      return valStmts;
+      var valueStmts = codeGenExpr(stmt.value, env);
+      return codeGenLValue(stmt.lhs, valueStmts, env)
+    //if (env.locals.has(stmt.name)) {valStmts.push(`(local.set $${stmt.name})`);}
+    //else {valStmts.push(`(global.set $${stmt.name})`);}
     case "expr":
       const result = codeGenExpr(stmt.expr, env);
       result.push("(local.set $scratch)");
@@ -317,6 +377,7 @@ export function compile(source: string): string {
       (func $print_num (import "imports" "print_num") (param i32) (result i32))
       (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
       (func $print_none (import "imports" "print_none") (param i32) (result i32))
+      (func $runtime_error (import "imports" "runtime_error"))
       (global $heap$ptr (mut i32) (i32.const 4))
       ${varDecls}
       ${allClasses}

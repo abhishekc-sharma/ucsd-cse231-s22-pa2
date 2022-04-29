@@ -81,6 +81,132 @@ describe('tcExpr', () => {
     expect(() => tcExpr({tag: "id", name: "x"}, env)).to.throw();
   });
 
+  it('typechecks field access expression', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: "int",
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    let ast = tcExpr({
+      tag: "field",
+      obj: {tag: "id", name: "p"},
+      name: "y",
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "field",
+      obj: {tag: "id", name: "p", a: {tag: "object", name: "Point"}},
+      name: "y",
+      a: "int"
+    });
+  });
+
+  it('typechecks nested field access expression', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: {tag: "object", name: "Point"},
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    let ast = tcExpr({
+      tag: "field",
+      obj: {tag: "field", obj: {tag: "id", name: "p"}, name: "x"},
+      name: "y",
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "field",
+      obj: {tag: "field", obj: {tag: "id", name: "p", a: {tag: "object", name: "Point"}}, name: "x", a: {tag: "object", name: "Point"}},
+      name: "y",
+      a: "int"
+    });
+  });
+
+  it('throws an error on accessing an invalid field', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: {tag: "object", name: "Point"},
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcExpr({
+      tag: "field",
+      obj: {tag: "field", obj: {tag: "id", name: "p"}, name: "x"},
+      name: "z",
+    }, env)).to.throw();
+  });
+
+  it('throws an error on accessing a field of non-object type', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: "int", global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: {tag: "object", name: "Point"},
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcExpr({
+      tag: "field",
+      obj: {tag: "field", obj: {tag: "id", name: "p"}, name: "x"},
+      name: "y",
+    }, env)).to.throw();
+  })
+
   it('typechecks calls to the print builtin function', () => {
     let env: TypingEnv = {ret: "none", vars: new Map<string, EnvType>(), inFunc: false, classNames: new Set(), classes: new Map<string, ClassType>()};
 
@@ -176,6 +302,251 @@ describe('tcExpr', () => {
     };
 
     expect(() => tcExpr({tag: "call", name: "add_pred", args: [{tag: "literal", value: {tag: "number", value: 5}}, {tag: "literal", value: {tag: "true"}}]}, env)).to.throw();
+  });
+
+  it('typechecks calls to class construction', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: "int",
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    let ast = tcExpr({
+      tag: "call",
+      name: "Point",
+      args: [],
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "call",
+      name: "Point",
+      args: [],
+      a: {tag: "object", name: "Point"},
+    });
+  });
+
+  it('throws an error on class construction of invalid class', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: "int",
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcExpr({
+      tag: "call",
+      name: "Pointy",
+      args: [],
+    }, env)).to.throw();
+  });
+
+  it('throws an error on class construction with arguments', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: "int",
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcExpr({
+      tag: "call",
+      name: "Point",
+      args: [{tag: "literal", value: {tag: "false"}}],
+    }, env)).to.throw();
+  });
+
+  it('typechecks method calls on objects', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: {tag: "object", name: "Point"},
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(Object.entries({
+            "new": [["int", "int"], "none"]
+          })),
+        }
+      })),
+      inFunc: false,
+    };
+
+    let ast = tcExpr({
+      tag: "method",
+      obj: {tag: "id", name: "p"},
+      name: "new",
+      args: [{tag: "literal", value: {tag: "number", value: 5}}, {tag: "literal", value: {tag: "number", value: 5}}]
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "method",
+      obj: {tag: "id", name: "p", a: {tag: "object", name: "Point"}},
+      name: "new",
+      args: [{tag: "literal", value: {tag: "number", value: 5, a: "int"}, a: "int"}, {tag: "literal", value: {tag: "number", value: 5, a: "int"}, a: "int"}],
+      a: "none",
+    });
+  });
+
+  it('throws error on invalid method call on object', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: {tag: "object", name: "Point"},
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(Object.entries({
+            "new": [["int", "int"], "none"]
+          })),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcExpr({
+      tag: "method",
+      obj: {tag: "id", name: "p"},
+      name: "foo",
+      args: [{tag: "literal", value: {tag: "number", value: 5}}, {tag: "literal", value: {tag: "number", value: 5}}]
+    }, env)).to.throw()
+  });
+
+  it('throws error on method call on non object type', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: "int", global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: {tag: "object", name: "Point"},
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(Object.entries({
+            "new": [["int", "int"], "none"]
+          })),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcExpr({
+      tag: "method",
+      obj: {tag: "id", name: "p"},
+      name: "new",
+      args: [{tag: "literal", value: {tag: "number", value: 5}}, {tag: "literal", value: {tag: "number", value: 5}}]
+    }, env)).to.throw()
+  });
+
+  it('throws error on incorrect type of arguments to method', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: {tag: "object", name: "Point"},
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(Object.entries({
+            "new": [["int", "int"], "none"]
+          })),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcExpr({
+      tag: "method",
+      obj: {tag: "id", name: "p"},
+      name: "new",
+      args: [{tag: "literal", value: {tag: "false"}}, {tag: "literal", value: {tag: "number", value: 5}}]
+    }, env)).to.throw();
+  });
+
+  it('throws error on incorrect number of arguments to method', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: {tag: "object", name: "Point"},
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(Object.entries({
+            "new": [["int", "int"], "none"]
+          })),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcExpr({
+      tag: "method",
+      obj: {tag: "id", name: "p"},
+      name: "new",
+      args: [{tag: "literal", value: {tag: "number", value: 5}}]
+    }, env)).to.throw();
   });
 
   it('typechecks unary operator -', () => {
@@ -437,13 +808,13 @@ describe('tcStmt', () => {
 
     let ast = tcStmt({
       tag: "assign",
-      name: "x",
+      lhs: {tag: "variable", name: "x"},
       value: {tag: "binop", op: "+", lhs: {tag: "id", name: "x"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}
     }, env)
 
     expect(ast).to.deep.equal({
       tag: "assign",
-      name: "x",
+      lhs: {tag: "variable", name: "x", a: "int"},
       value: {tag: "binop", op: "+", lhs: {tag: "id", name: "x", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"},
       a: "none"
     });
@@ -458,13 +829,13 @@ describe('tcStmt', () => {
 
     let ast = tcStmt({
       tag: "assign",
-      name: "x",
+      lhs: {tag: "variable", name: "x"},
       value: {tag: "binop", op: "+", lhs: {tag: "id", name: "x"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}
     }, env)
 
     expect(ast).to.deep.equal({
       tag: "assign",
-      name: "x",
+      lhs: {tag: "variable", name: "x", a: "int"},
       value: {tag: "binop", op: "+", lhs: {tag: "id", name: "x", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"},
       a: "none"
     });
@@ -479,7 +850,7 @@ describe('tcStmt', () => {
 
     expect(() => tcStmt({
       tag: "assign",
-      name: "x",
+      lhs: {tag: "variable", name: "x"},
       value: {tag: "binop", op: "+", lhs: {tag: "id", name: "x"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}
     }, env)).to.throw();
   });
@@ -493,7 +864,7 @@ describe('tcStmt', () => {
 
     expect(() => tcStmt({
       tag: "assign",
-      name: "y",
+      lhs: {tag: "variable", name: "y"},
       value: {tag: "binop", op: "+", lhs: {tag: "id", name: "x"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}
     }, env)).to.throw();
   });
@@ -508,7 +879,7 @@ describe('tcStmt', () => {
 
     expect(() => tcStmt({
       tag: "assign",
-      name: "x",
+      lhs: {tag: "variable", name: "x"},
       value: {tag: "binop", op: "+", lhs: {tag: "id", name: "y"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}
     }, env)).to.throw();
   });
@@ -522,8 +893,134 @@ describe('tcStmt', () => {
 
     expect(() => tcStmt({
       tag: "assign",
-      name: "x",
+      lhs: {tag: "variable", name: "x"},
       value: {tag: "binop", op: "+", lhs: {tag: "id", name: "x"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}
+    }, env)).to.throw();
+  });
+
+  it('typechecks assignment to object field', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: "int",
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    let ast = tcStmt({
+      tag: "assign",
+      lhs: {tag: "member", expr: {tag: "id", name: "p"}, name: "x"},
+      value: {tag: "literal", value: {tag: "number", value: 5}}
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "assign",
+      lhs: {tag: "member", expr: {tag: "id", name: "p", a: {tag: "object", name: "Point"}}, name: "x", a: "int"},
+      value: {tag: "literal", value: {tag: "number", value: 5, a: "int"}, a: "int"},
+      a: "none"
+    });
+  });
+
+  it('typechecks assignment to nested object field', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: {tag: "object", name: "Point"},
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    let ast = tcStmt({
+      tag: "assign",
+      lhs: {tag: "member", expr: {tag: "field", obj: {tag: "id", name: "p"}, name: "x"}, name: "y"},
+      value: {tag: "literal", value: {tag: "number", value: 5}}
+    }, env);
+
+    expect(ast).to.deep.equal({
+      tag: "assign",
+      lhs: {tag: "member", expr: {tag: "field", obj: {tag: "id", name: "p", a: {tag: "object", name: "Point"}}, name: "x", a: {tag: "object", name: "Point"}}, name: "y", a: "int"},
+      value: {tag: "literal", value: {tag: "number", value: 5, a: "int"}, a: "int"},
+      a: "none"
+    });
+  });
+
+  it('throws error on assignment to invalid object field', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: {tag: "object", name: "Point"}, global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: "int",
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcStmt({
+      tag: "assign",
+      lhs: {tag: "member", expr: {tag: "id", name: "p"}, name: "z"},
+      value: {tag: "literal", value: {tag: "number", value: 5}}
+    }, env)).to.throw();
+  });
+
+  it('throws error on assignment to field on invalid non-object type', () => {
+    let env: TypingEnv = {
+      ret: "none",
+      classNames: new Set(["object", "Point"]),
+      vars: new Map<string, EnvType>(Object.entries({
+        "p": {
+          tag: "variable", type: "int", global: true
+        }
+      })),
+      classes: new Map<string, ClassType>(Object.entries({
+        "Point": {
+          fields: new Map<string, ast.Type>(Object.entries({
+            x: "int",
+            y: "int",
+          })),
+          methods: new Map<string, [ast.Type[], ast.Type]>(),
+        }
+      })),
+      inFunc: false,
+    };
+
+    expect(() => tcStmt({
+      tag: "assign",
+      lhs: {tag: "member", expr: {tag: "id", name: "p"}, name: "z"},
+      value: {tag: "literal", value: {tag: "number", value: 5}}
     }, env)).to.throw();
   });
 
@@ -650,17 +1147,17 @@ describe('tcStmt', () => {
           tag: "ifelse",
           ifcond: {tag: "literal", value: {tag: "true"}},
           ifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
           ],
           elifcond: {tag: "literal", value: {tag: "false"}},
           elifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
           ],
           elsebody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
           ],
         }
       ]
@@ -686,13 +1183,13 @@ describe('tcStmt', () => {
           tag: "ifelse",
           ifcond: {tag: "literal", value: {tag: "true"}},
           ifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
           ],
           elifcond: {tag: "literal", value: {tag: "false"}},
           elifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
           ],
         }
       ]
@@ -718,18 +1215,18 @@ describe('tcStmt', () => {
           tag: "ifelse",
           ifcond: {tag: "literal", value: {tag: "true"}},
           ifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
             {tag: "return", value: {tag: "id", name: "sum"}},
           ],
           elifcond: {tag: "literal", value: {tag: "false"}},
           elifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
           ],
           elsebody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
           ],
         }
       ]
@@ -755,13 +1252,13 @@ describe('tcStmt', () => {
           tag: "ifelse",
           ifcond: {tag: "literal", value: {tag: "false"}},
           ifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
           ],
           elifcond: {tag: "literal", value: {tag: "false"}},
           elifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+            {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+            {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
           ]
         }
       ]
@@ -779,13 +1276,13 @@ describe('tcStmt', () => {
           tag: "ifelse",
           ifcond: {tag: "literal", value: {tag: "false", a: "bool"}, a: "bool"},
           ifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
+            {tag: "assign", lhs: {tag: "variable", name: "sum", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
+            {tag: "assign", lhs: {tag: "variable", name: "n", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
           ],
           elifcond: {tag: "literal", value: {tag: "false", a: "bool"}, a: "bool"},
           elifbody: [
-            {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
-            {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
+            {tag: "assign", lhs: {tag: "variable", name: "sum", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
+            {tag: "assign", lhs: {tag: "variable", name: "n", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
           ],
           a: "none",
         }
@@ -883,7 +1380,7 @@ describe('tcStmt', () => {
       tag: "while",
       cond: {tag: "id", name: "x"},
       body: [
-        {tag: "assign", name: "n", value: {tag: "literal", value: {tag: "number", value: 5}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "literal", value: {tag: "number", value: 5}}},
         {tag: "expr", expr: {tag: "literal", value: {tag: "true"}}},
       ]
     }, env);
@@ -892,7 +1389,7 @@ describe('tcStmt', () => {
       tag: "while",
       cond: {tag: "id", name: "x", a: "bool"},
       body: [
-        {tag: "assign", name: "n", value: {tag: "literal", value: {tag: "number", value: 5, a: "int"}, a: "int"}, a: "none"},
+        {tag: "assign", lhs: {tag: "variable", name: "n", a: "int"}, value: {tag: "literal", value: {tag: "number", value: 5, a: "int"}, a: "int"}, a: "none"},
         {tag: "expr", expr: {tag: "literal", value: {tag: "true", a: "bool"}, a: "bool"}, a: "none"},
       ],
       a: "none",
@@ -911,7 +1408,7 @@ describe('tcStmt', () => {
       tag: "while",
       cond: {tag: "id", name: "n"},
       body: [
-        {tag: "assign", name: "n", value: {tag: "literal", value: {tag: "number", value: 5}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "literal", value: {tag: "number", value: 5}}},
         {tag: "expr", expr: {tag: "literal", value: {tag: "true"}}},
       ]
     }, env)).to.throw();
@@ -929,17 +1426,17 @@ describe('tcStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elifcond: {tag: "literal", value: {tag: "false"}},
       elifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elsebody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     }, env);
 
@@ -947,17 +1444,17 @@ describe('tcStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true", a: "bool"}, a: "bool"},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
+        {tag: "assign", lhs: {tag: "variable", name: "sum", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
+        {tag: "assign", lhs: {tag: "variable", name: "n", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
       ],
       elifcond: {tag: "literal", value: {tag: "false", a: "bool"}, a: "bool"},
       elifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
+        {tag: "assign", lhs: {tag: "variable", name: "sum", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
+        {tag: "assign", lhs: {tag: "variable", name: "n", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
       ],
       elsebody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
+        {tag: "assign", lhs: {tag: "variable", name: "sum", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
+        {tag: "assign", lhs: {tag: "variable", name: "n", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
       ],
       a: "none",
     });
@@ -975,8 +1472,8 @@ describe('tcStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true"}},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     }, env);
 
@@ -984,8 +1481,8 @@ describe('tcStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "true", a: "bool"}, a: "bool"},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
+        {tag: "assign", lhs: {tag: "variable", name: "sum", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum", a: "int"}, rhs: {tag: "id", name: "n", a: "int"}, a: "int"}, a: "none"},
+        {tag: "assign", lhs: {tag: "variable", name: "n", a: "int"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n", a: "int"}, rhs: {tag: "literal", value: {tag: "number", value: 1, a: "int"}, a: "int"}, a: "int"}, a: "none"},
       ],
       a: "none"
     });
@@ -1003,17 +1500,17 @@ describe('tcStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "id", name: "n"},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elifcond: {tag: "literal", value: {tag: "false"}},
       elifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elsebody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     }, env)).to.throw();
   });
@@ -1030,17 +1527,17 @@ describe('tcStmt', () => {
       tag: "ifelse",
       ifcond: {tag: "literal", value: {tag: "false"}},
       ifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elifcond: {tag: "id", name: "n"},
       elifbody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
       elsebody: [
-        {tag: "assign", name: "sum", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
-        {tag: "assign", name: "n", value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
+        {tag: "assign", lhs: {tag: "variable", name: "sum"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "sum"}, rhs: {tag: "id", name: "n"}}},
+        {tag: "assign", lhs: {tag: "variable", name: "n"}, value: {tag: "binop", op: "+", lhs: {tag: "id", name: "n"}, rhs: {tag: "literal", value: {tag: "number", value: 1}}}},
       ],
     }, env)).to.throw();
   })
@@ -1378,14 +1875,13 @@ describe('tcStmt', () => {
               {name: "n", type: "bool", value: {tag: "true"}},
               {name: "d", type: "int", value: {tag: "number", value: 789}},
             ],
-            methods: [
-              {
-                name: "d",
-                params: [{name: "self", typ: {tag: "object", name: "Rat"}}],
-                ret: "none",
-                defs: [],
-                body: [{tag: "pass"}]
-              }
+            methods: [{
+              name: "d",
+              params: [{name: "self", typ: {tag: "object", name: "Rat"}}],
+              ret: "none",
+              defs: [],
+              body: [{tag: "pass"}]
+            }
             ],
           }
         }
@@ -1602,5 +2098,5 @@ describe('tcStmt', () => {
       ],
       stmts: [],
     })).to.throw();
-  })
+  });
 });

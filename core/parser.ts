@@ -1,6 +1,6 @@
 import {TreeCursor} from 'lezer';
 import {parser} from 'lezer-python';
-import {Program, Parameter, Stmt, Expr, Literal, Def, ClassDef, FunDef, VarDef, Type, isBinOp, isUnOp} from './ast';
+import {Program, Parameter, Stmt, Expr, Literal, Def, LValue, ClassDef, FunDef, VarDef, Type, isBinOp, isUnOp} from './ast';
 
 export type ParsingEnv = {inFunction: boolean, inClass: boolean};
 
@@ -104,7 +104,7 @@ export function parseDef(s: string, t: TreeCursor, env: ParsingEnv): Def<any> {
       const classDef = parseClassDef(s, t, env);
       return {tag: "class", def: classDef};
     default:
-      throw new Error(`ParseError: expecting a variable/function/class definition: ${s.substring(t.from, t.to)}`);
+      throw new Error(`PARSE ERROR: expecting a variable/function/class definition: ${s.substring(t.from, t.to)}`);
   }
 }
 
@@ -121,7 +121,7 @@ function parseVarDef(s: string, t: TreeCursor): VarDef<any> {
     // @ts-ignore
     if (t.type.name !== "TypeDef") {
       t.parent();
-      throw new Error("ParseError: Missing type annotation in variable definition: " + s.substring(t.from, t.to));
+      throw new Error("PARSE ERROR: Missing type annotation in variable definition: " + s.substring(t.from, t.to));
     }
 
     t.firstChild(); // focus on :
@@ -139,7 +139,7 @@ function parseVarDef(s: string, t: TreeCursor): VarDef<any> {
 
     return {name, type, value}
   } else {
-    throw new Error(`ParseError: expecting variable definition: ${s.substring(t.from, t.to)}`);
+    throw new Error(`PARSE ERROR: expecting variable definition: ${s.substring(t.from, t.to)}`);
   }
 }
 
@@ -147,7 +147,7 @@ function parseFunDef(s: string, t: TreeCursor, env: ParsingEnv): FunDef<any> {
   if (t.type.name === "FunctionDefinition") {
     // nested fucntion definitions are not allowed
     if (env.inFunction) {
-      throw new Error("ParseError: Nested function definition not supported: " + s.substring(t.from, t.to));
+      throw new Error("PARSE ERROR: Nested function definition not supported: " + s.substring(t.from, t.to));
     }
     t.firstChild();  // Focus on def
     t.nextSibling(); // Focus on name of function
@@ -172,13 +172,13 @@ function parseFunDef(s: string, t: TreeCursor, env: ParsingEnv): FunDef<any> {
       name, params, defs, body, ret
     }
   } else {
-    throw new Error(`ParseError: expecting function definition: ${s.substring(t.from, t.to)}`);
+    throw new Error(`PARSE ERROR: expecting function definition: ${s.substring(t.from, t.to)}`);
   }
 }
 
 function parseClassDef(s: string, t: TreeCursor, env: ParsingEnv): ClassDef<any> {
   if (t.type.name !== "ClassDefinition") {
-    throw new Error(`ParseError: expecting class definition: ${s.substring(t.from, t.to)}`);
+    throw new Error(`PARSE ERROR: expecting class definition: ${s.substring(t.from, t.to)}`);
   }
 
   t.firstChild(); // focus on "class"
@@ -191,14 +191,14 @@ function parseClassDef(s: string, t: TreeCursor, env: ParsingEnv): ClassDef<any>
   t.nextSibling(); // focus on VariableName
   if (s.substring(t.from, t.to) === ")") {
     t.parent();
-    throw new Error(`ParseError: class definition must have exactly one parent class: ${s.substring(t.from, t.to)}`);
+    throw new Error(`PARSE ERROR: class definition must have exactly one parent class: ${s.substring(t.from, t.to)}`);
   }
   const parent = s.substring(t.from, t.to);
 
   t.nextSibling(); // focus on ")
   if (s.substring(t.from, t.to) !== ")") {
     t.parent();
-    throw new Error(`ParseError: class definition must have exactly one parent class: ${s.substring(t.from, t.to)}`);
+    throw new Error(`PARSE ERROR: class definition must have exactly one parent class: ${s.substring(t.from, t.to)}`);
   }
 
   t.parent(); // pop to ArgList
@@ -208,7 +208,7 @@ function parseClassDef(s: string, t: TreeCursor, env: ParsingEnv): ClassDef<any>
 
   const [defs, foundStmt] = parseDefs(s, t, {...env, inClass: true});
   if (foundStmt) {
-    throw new Error(`ParseError: unexpected statement inside class definition: ${s.substring(t.from, t.to)}`);
+    throw new Error(`PARSE ERROR: unexpected statement inside class definition: ${s.substring(t.from, t.to)}`);
   }
 
   const fields = defs.filter(d => d.tag === "variable").map(d => d.def);
@@ -233,7 +233,7 @@ export function parseStmt(s: string, t: TreeCursor, env: ParsingEnv): Stmt<any> 
     case "ReturnStatement":
       // check if we are in a function for return statement to be allowed
       if (!env.inFunction) {
-        throw new Error("ParseError: Return statement not allowed outside function body: " + s.substring(t.from, t.to));
+        throw new Error("PARSE ERROR: Return statement not allowed outside function body: " + s.substring(t.from, t.to));
       }
 
       // default to returning None of return does not have an expression
@@ -247,21 +247,21 @@ export function parseStmt(s: string, t: TreeCursor, env: ParsingEnv): Stmt<any> 
       t.parent();
       return {tag: "return", value};
     case "AssignStatement":
-      t.firstChild(); // focused on name (the first child)
-      var name = s.substring(t.from, t.to);
+      t.firstChild(); // focused on lvalue (the first child)
+      var lhs = parseLValue(s, t);
       t.nextSibling(); // focused on = sign. May need this for complex tasks, like +=!
 
       // assignment should not have type annotation
       // @ts-ignore
       if (t.type.name == "TypeDef") {
         t.parent();
-        throw new Error("ParseError: Unexpected type annotation in variable assignment: " + s.substring(t.from, t.to));
+        throw new Error("PARSE ERROR: Unexpected type annotation in variable assignment: " + s.substring(t.from, t.to));
       }
       t.nextSibling(); // focused on the value expression
 
       var value = parseExpr(s, t);
       t.parent(); // focus back on assignment statement
-      return {tag: "assign", name, value};
+      return {tag: "assign", lhs, value};
     case "ExpressionStatement":
       t.firstChild(); // The child is some kind of expression, the
       // ExpressionStatement is just a wrapper with no information
@@ -313,7 +313,7 @@ export function parseStmt(s: string, t: TreeCursor, env: ParsingEnv): Stmt<any> 
       // current supporting only a single elif branch
       // so the next node has to be an "else"
       if (s.substring(t.from, t.to) != "else") {
-        throw new Error(`ParseError: Cannot have more than one elif branch`);
+        throw new Error(`PARSE ERROR: Cannot have more than one elif branch`);
       }
 
       t.nextSibling(); // focus on body
@@ -327,7 +327,7 @@ export function parseStmt(s: string, t: TreeCursor, env: ParsingEnv): Stmt<any> 
       ret.elsebody = elseBody;
       return ret;
     default:
-      throw new Error(`ParseError: Unexpected statement: ` + s.substring(t.from, t.to));
+      throw new Error(`PARSE ERROR: Unexpected statement: ` + s.substring(t.from, t.to));
   }
 }
 
@@ -371,7 +371,7 @@ export function parseType(s: string, t: TreeCursor): Type {
       }
       return name;
     default:
-      throw new Error("ParseError: Unknown type: " + t.type.name)
+      throw new Error("PARSE ERROR: Unknown type: " + t.type.name)
 
   }
 }
@@ -384,7 +384,7 @@ export function parseParameters(s: string, t: TreeCursor): Parameter[] {
     let name = s.substring(t.from, t.to);
     t.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
     let nextTagName = t.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
-    if (nextTagName !== "TypeDef") {throw new Error("ParseError: Missing type annotation for parameter " + name)};
+    if (nextTagName !== "TypeDef") {throw new Error("PARSE ERROR: Missing type annotation for parameter " + name)};
     t.firstChild();  // Enter TypeDef
     t.nextSibling(); // Focuses on type itself
     let typ = parseType(s, t);
@@ -395,6 +395,45 @@ export function parseParameters(s: string, t: TreeCursor): Parameter[] {
   }
   t.parent();       // Pop to ParamList
   return parameters;
+}
+
+export function parseLValue(s: string, t: TreeCursor): LValue<any> {
+  switch (t.type.name) {
+    case "VariableName": {
+      const name = s.substring(t.from, t.to);
+      return {tag: "variable", name};
+    }
+    case "MemberExpression": {
+      t.firstChild(); // focus on either MemberExpression or VariableName
+      const expr = parseExpr(s, t);
+      t.nextSibling(); // focus on "."
+      t.nextSibling(); // focus on PropertyName
+      const name = s.substring(t.from, t.to);
+      t.parent(); // pop to MemberExpression
+      return {tag: "member", expr, name};
+    }
+  }
+}
+
+export function parseMethodExpr(s: string, t: TreeCursor): Expr<any> {
+  if (t.type.name !== "MemberExpression") {
+    throw new Error(`PARSE ERROR: Expected a method call expression: ${s.substring(t.from, t.to)}`);
+  }
+
+  t.firstChild(); // focus on obj Expr
+  let obj = parseExpr(s, t);
+
+  t.nextSibling(); // focus on  "."
+  t.nextSibling(); // focus on PropertyName
+  let name = s.substring(t.from, t.to);
+
+  t.parent(); // pop to MemberExpression
+  t.nextSibling(); // Focus ArgList
+  t.firstChild(); // Focus open paren
+  var args = parseArguments(s, t);
+  t.parent(); // pop to CallExpression
+
+  return {tag: "method", obj, name, args};
 }
 
 // Parse an expression
@@ -410,8 +449,20 @@ export function parseExpr(s: string, t: TreeCursor): Expr<any> {
       return {tag: "literal", value: literal};
     case "VariableName":
       return {tag: "id", name: s.substring(t.from, t.to)};
+    case "MemberExpression":
+      t.firstChild(); // focus on left side expression
+      let obj = parseExpr(s, t);
+      t.nextSibling(); // focus on "."
+      t.nextSibling(); // focus on PropertyName
+      let fieldName = s.substring(t.from, t.to);
+      t.parent();
+      return {tag: "field", obj, name: fieldName};
     case "CallExpression":
       t.firstChild(); // Focus name
+      //@ts-ignore
+      if (t.type.name === "MemberExpression") {
+        return parseMethodExpr(s, t);
+      }
       var name = s.substring(t.from, t.to);
       t.nextSibling(); // Focus ArgList
       t.firstChild(); // Focus open paren
@@ -425,7 +476,7 @@ export function parseExpr(s: string, t: TreeCursor): Expr<any> {
       t.nextSibling(); // go to op
       var opStr = s.substring(t.from, t.to);
       if (!isBinOp(opStr)) {
-        throw new Error(`ParseError: Unknown or unhandled binary operator: ${opStr}`);
+        throw new Error(`PARSE ERROR: Unknown or unhandled binary operator: ${opStr}`);
       }
       t.nextSibling(); // go to rhs
       const rhsExpr = parseExpr(s, t);
@@ -440,7 +491,7 @@ export function parseExpr(s: string, t: TreeCursor): Expr<any> {
       t.firstChild();
       let unOpStr = s.substring(t.from, t.to);
       if (!isUnOp(unOpStr)) {
-        throw new Error(`ParseError: Unknown or unhandled unary op: ${unOpStr}`);
+        throw new Error(`PARSE ERROR: Unknown or unhandled unary op: ${unOpStr}`);
       }
       t.nextSibling(); // go to expr
       const expr = parseExpr(s, t);
@@ -457,12 +508,12 @@ export function parseExpr(s: string, t: TreeCursor): Expr<any> {
       t.nextSibling();
       if (s.substring(t.from, t.to) !== ")") {
         t.parent();
-        throw new Error(`ParseError: Missing/Mismatched closing parenthesis: ` + s.substring(t.from, t.to));
+        throw new Error(`PARSE ERROR: Missing/Mismatched closing parenthesis: ` + s.substring(t.from, t.to));
       }
       t.parent();
       return pexpr;
     default:
-      throw new Error(`ParseError: Unexpected expression: ` + s.substring(t.from, t.to));
+      throw new Error(`PARSE ERROR: Unexpected expression: ` + s.substring(t.from, t.to));
   }
 }
 
@@ -481,12 +532,12 @@ export function parseLiteral(s: string, t: TreeCursor): Literal<any> {
       // so parsing as Number and Int should give
       // the same result.
       if (integer !== number) {
-        throw new Error(`ParseError: Invalid integer literal ${s.substring(t.from, t.to)}`);
+        throw new Error(`PARSE ERROR: Invalid integer literal ${s.substring(t.from, t.to)}`);
       }
 
       return {tag: "number", value: integer};
     default:
-      throw new Error(`ParseError: Invalid expression where literal is expected: ${s.substring(t.from, t.to)}`);
+      throw new Error(`PARSE ERROR: Invalid expression where literal is expected: ${s.substring(t.from, t.to)}`);
   }
 }
 
