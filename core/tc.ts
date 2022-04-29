@@ -183,7 +183,7 @@ export function tcExpr(e: Expr<any>, env: TypingEnv): Expr<Type> {
 
       if (e.op === "is") {
         if ((lhsTyped.a !== "none" && !isSomeClassType(lhsTyped.a)) || (rhsTyped.a !== "none" && !isSomeClassType(rhsTyped.a))) {
-          throw new Error(`TypeError: Cannot apply binary operator ${e.op} on types ${lhsTyped.a} and ${rhsTyped.a}`);
+          throw new Error(`TYPE ERROR: Cannot apply binary operator ${e.op} on types ${lhsTyped.a} and ${rhsTyped.a}`);
         }
 
         return {...e, lhs: lhsTyped, rhs: rhsTyped, a: "bool"};
